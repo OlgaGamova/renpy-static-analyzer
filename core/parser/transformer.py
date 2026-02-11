@@ -1,6 +1,6 @@
 from lark import Transformer
 from core.ir.model import Script, Label, Jump, Say, Menu, MenuOption
-
+from lark import Transformer, Token
 
 class RenPyTransformer(Transformer):
 
@@ -13,28 +13,36 @@ class RenPyTransformer(Transformer):
 
     def label(self, items):
         name = str(items[0])
-        body = items[1:]
+
+        body = [
+            item for item in items[1:]
+            if not isinstance(item, Token)
+        ]
+
         return Label(name=name, body=body)
 
     def jump(self, items):
-        target = str(items[0])
-        return Jump(target=target)
+        return Jump(target=str(items[0]))
 
     def say(self, items):
-        if len(items) == 1:
-            text = items[0][1:-1]
-            return Say(text=text)
-        else:
-            character = str(items[0])
-            text = items[1][1:-1]
-            return Say(text=text, character=character)
+        text = items[0][1:-1]
+        return Say(text=text)
 
     def menu(self, items):
-        return Menu(options=items)
+        options = [
+            item for item in items
+            if not isinstance(item, Token)
+        ]
+        return Menu(options=options)
 
     def menu_option(self, items):
         text = items[0][1:-1]
-        body = items[1:]
+
+        body = [
+            item for item in items[1:]
+            if not isinstance(item, Token)
+        ]
+
         return MenuOption(text=text, body=body)
 
     def statement(self, items):

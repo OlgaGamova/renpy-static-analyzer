@@ -1,24 +1,28 @@
 RENPY_GRAMMAR = r"""
-start: statement+
+start: (_NEWLINE | statement)*
 
-statement: label
-         | jump
-         | menu
-         | menu_option
-         | say
+?statement: label
+          | jump
+          | menu
+          | say
 
-label: "label" NAME ":" statement*
+label: "label" NAME ":" _NEWLINE INDENT statement+ DEDENT
 
-jump: "jump" NAME
+jump: "jump" NAME _NEWLINE?
 
-menu: "menu" ":" menu_option+
+menu: "menu" ":" _NEWLINE INDENT menu_option+ DEDENT
 
-menu_option: STRING ":" statement+
+menu_option: STRING ":" _NEWLINE INDENT statement+ DEDENT
 
-say: STRING
+say: STRING _NEWLINE?
 
 %import common.CNAME -> NAME
 %import common.ESCAPED_STRING -> STRING
-%import common.WS
-%ignore WS
+%import common.WS_INLINE
+
+_NEWLINE: /(\r?\n[ \t]*)+/
+
+%declare INDENT DEDENT
+
+%ignore WS_INLINE
 """
