@@ -3,39 +3,19 @@ start: statement+
 
 statement: label
          | jump
-         | say
          | menu
-
-// -----------------
-// LABEL
-// -----------------
+         | menu_option
+         | say
 
 label: "label" NAME ":" statement*
 
-// -----------------
-// JUMP
-// -----------------
-
 jump: "jump" NAME
-
-// -----------------
-// SAY
-// -----------------
-
-say: STRING
-   | NAME STRING
-
-// -----------------
-// MENU
-// -----------------
 
 menu: "menu" ":" menu_option+
 
-menu_option: STRING ":" statement*
+menu_option: STRING ":" statement+
 
-// -----------------
-// TOKENS
-// -----------------
+say: STRING
 
 %import common.CNAME -> NAME
 %import common.ESCAPED_STRING -> STRING

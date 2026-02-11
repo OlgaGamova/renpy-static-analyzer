@@ -36,3 +36,6 @@ class RenPyTransformer(Transformer):
         text = items[0][1:-1]
         body = items[1:]
         return MenuOption(text=text, body=body)
+
+    def statement(self, items):
+        return items[0]
