@@ -1,7 +1,5 @@
-# core/parser/parser.py
-
 from lark import Lark
-from core.parser.grammar import RENPLY_GRAMMAR
+from core.parser.grammar import RENPY_GRAMMAR
 
 
 class RenPyParser:
@@ -12,7 +10,7 @@ class RenPyParser:
 
     def __init__(self):
         self._parser = Lark(
-            RENPLY_GRAMMAR,
+            RENPY_GRAMMAR,
             parser="lalr",
             propagate_positions=True,
             maybe_placeholders=False,

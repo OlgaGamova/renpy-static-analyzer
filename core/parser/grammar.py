@@ -1,4 +1,4 @@
-RENPLY_GRAMMAR = r"""
+RENPY_GRAMMAR = r"""
 start: statement+
 
 statement: label
