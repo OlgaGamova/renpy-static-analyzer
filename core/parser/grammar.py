@@ -2,17 +2,43 @@ RENPLY_GRAMMAR = r"""
 start: statement+
 
 statement: label
+         | jump
+         | say
+         | menu
 
-label: "label" NAME ":" NEWLINE INDENT label_body DEDENT
+// -----------------
+// LABEL
+// -----------------
 
-label_body: statement+
+label: "label" NAME ":" statement*
 
-statement: jump
+// -----------------
+// JUMP
+// -----------------
 
-jump: "jump" NAME NEWLINE
+jump: "jump" NAME
+
+// -----------------
+// SAY
+// -----------------
+
+say: STRING
+   | NAME STRING
+
+// -----------------
+// MENU
+// -----------------
+
+menu: "menu" ":" menu_option+
+
+menu_option: STRING ":" statement*
+
+// -----------------
+// TOKENS
+// -----------------
 
 %import common.CNAME -> NAME
-%import common.NEWLINE
-%import common.WS_INLINE
-%ignore WS_INLINE
+%import common.ESCAPED_STRING -> STRING
+%import common.WS
+%ignore WS
 """
