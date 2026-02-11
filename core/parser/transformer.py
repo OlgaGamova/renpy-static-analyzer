@@ -1,16 +1,10 @@
-from lark import Transformer, Tree, Token
-from core.ir.model import Script, Label, Jump
+from lark import Transformer
+from core.ir.model import Script, Label, Jump, Say, Menu, MenuOption
 
 
 class RenPyTransformer(Transformer):
-    """
-    Преобразует дерево разбора Lark в IR-модель.
-    """
 
     def start(self, items):
-        """
-        start: statement+
-        """
         script = Script()
         for item in items:
             if isinstance(item, Label):
@@ -18,20 +12,27 @@ class RenPyTransformer(Transformer):
         return script
 
     def label(self, items):
-        """
-        label: "label" NAME ":" NEWLINE INDENT label_body DEDENT
-        """
-        name_token = items[0]
+        name = str(items[0])
         body = items[1:]
-
-        return Label(
-            name=str(name_token),
-            body=body
-        )
+        return Label(name=name, body=body)
 
     def jump(self, items):
-        """
-        jump: "jump" NAME NEWLINE
-        """
-        target_token = items[0]
-        return Jump(target=str(target_token))
+        target = str(items[0])
+        return Jump(target=target)
+
+    def say(self, items):
+        if len(items) == 1:
+            text = items[0][1:-1]
+            return Say(text=text)
+        else:
+            character = str(items[0])
+            text = items[1][1:-1]
+            return Say(text=text, character=character)
+
+    def menu(self, items):
+        return Menu(options=items)
+
+    def menu_option(self, items):
+        text = items[0][1:-1]
+        body = items[1:]
+        return MenuOption(text=text, body=body)
