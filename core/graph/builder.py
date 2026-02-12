@@ -19,11 +19,13 @@ class GraphBuilder:
     def _walk_body(self, current_label: str, body, graph):
         for node in body:
 
-            # Прямой переход
             if isinstance(node, Jump):
                 graph[current_label].add(node.target)
 
-            # Меню
             elif isinstance(node, Menu):
                 for option in node.options:
                     self._walk_body(current_label, option.body, graph)
+
+            elif hasattr(node, "body"):
+                self._walk_body(current_label, node.body, graph)
+
