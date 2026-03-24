@@ -3,6 +3,8 @@ from core.parser.parser import RenPyParser
 from core.parser.transformer import RenPyTransformer
 from core.graph.builder import GraphBuilder
 from core.graph.visualizer import GraphVisualizer
+from core.analysis.reachability import ReachabilityAnalyzer
+from core.analysis.dead_ends import DeadEndAnalyzer
 
 
 def analyze_file(file_path: str):
@@ -24,6 +26,17 @@ def analyze_file(file_path: str):
 
     builder = GraphBuilder()
     graph = builder.build(script)
+
+    print("\n=== ANALYSIS ===")
+
+    reach = ReachabilityAnalyzer()
+    dead = DeadEndAnalyzer()
+
+    unreachable = reach.find_unreachable(graph)
+    dead_ends = dead.find_dead_ends(graph)
+
+    print(f"Unreachable nodes: {unreachable}")
+    print(f"Dead ends: {dead_ends}")
 
     visualizer = GraphVisualizer()
     visualizer.render(graph, output_file=f"{file_path.split('/')[-1]}.html")
