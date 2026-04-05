@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Ren'Py Analyzer</title>
+
+<script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
+
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #f5f5f7;
+  margin: 20px;
+}
+
+button {
+  background: #0071e3;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+}
+
+.panel {
+  background: white;
+  border-radius: 12px;
+  padding: 15px;
+  margin-top: 10px;
+}
+
+#cy {
+  width: 100%;
+  height: 600px;
+  background: white;
+  border-radius: 12px;
+  margin-top: 15px;
+}
+
+#nodeCode {
+  font-family: monospace;
+  white-space: pre-wrap;
+}
+</style>
+</head>
+
+<body>
+
+<h2>Анализатор сценариев Ren'Py</h2>
+
+<input type="file" id="fileInput">
+<button onclick="analyze()">Анализировать</button>
+
+<div class="panel" id="report">Нет данных</div>
+<div class="panel" id="nodeCode">Кликните на узел</div>
+
+<div id="cy"></div>
+
+<script>
+let cy;
+
+async function analyze() {
+  const file = document.getElementById("fileInput").files[0];
+  const text = await file.text();
+
+  const res = await fetch("http://127.0.0.1:8000/analyze", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({code: text})
+  });
+
+  const data = await res.json();
+
+  if (cy) cy.destroy();
+
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements: [...data.nodes, ...data.edges],
+
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'label': 'data(label)',
+          'background-color': '#4a90e2',
+          'color': '#fff',
+          'text-valign': 'center',
+          'text-halign': 'center',
+
+          'width': 120,
+          'height': 50,
+
+          'text-wrap': 'wrap',
+          'text-max-width': '100px',
+
+          'padding': '10px',
+          'border-width': 2,
+          'border-color': '#ffffff',
+
+          'overlay-padding': 10,
+          'overlay-opacity': 0,
+
+          'text-events': 'no'
+        }
+      },
+      { selector: '.unreachable', style: { 'background-color': '#8e8e93' }},
+      { selector: '.missing', style: { 'background-color': '#ff9500' }},
+      { selector: '.infinite', style: { 'background-color': '#ffcc00' }},
+      { selector: '.bad-state', style: { 'background-color': '#af52de' }}
+    ],
+
+    layout: {
+      name: 'dagre',
+      rankDir: 'TB'
+    }
+  });
+
+  // --- подсветка ---
+  data.analysis.unreachable.forEach(id => cy.getElementById(id).addClass('unreachable'));
+  data.analysis.missing.forEach(id => cy.getElementById(id).addClass('missing'));
+
+  data.analysis.infinite_loops.forEach(loop => {
+    loop.forEach(id => cy.getElementById(id).addClass('infinite'));
+  });
+
+  data.analysis.state.impossible_conditions.forEach(p => {
+    cy.getElementById(p.label).addClass('bad-state');
+  });
+
+  // --- КЛИК ---
+  cy.on('click', 'node', function(evt) {
+    const n = evt.target;
+
+    document.getElementById("nodeCode").innerText =
+      "Узел: " + n.id() + "\n\n" +
+      "Кратко:\n" + n.data('summary') + "\n\n" +
+      "Код:\n" + n.data('code');
+  });
+
+  // --- ОТЧЕТ ---
+  let r = "";
+
+  r += "Недостижимые: " + (data.analysis.unreachable.join(", ") || "нет") + "\n";
+  r += "Ошибки переходов: " + (data.analysis.missing.join(", ") || "нет") + "\n";
+  r += "Циклы: " + (data.analysis.infinite_loops.length || "нет") + "\n\n";
+
+  data.analysis.state.impossible_conditions.forEach(p => {
+    r += `Ошибка состояния в ${p.label}\n`;
+    r += `Требуется: ${p.var} ≥ ${p.required}\n`;
+    r += `Максимум: ${p.range[1]}\n`;
+    r += `Путь: ${p.path.join(" → ")}\n\n`;
+  });
+
+  r += "\nРекомендации:\n";
+  data.recommendations.forEach(rec => {
+    r += "- " + rec + "\n";
+  });
+
+  document.getElementById("report").innerText = r;
+}
+</script>
+
+</body>
+</html>
