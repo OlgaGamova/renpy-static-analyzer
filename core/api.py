@@ -25,6 +25,52 @@ class ScriptRequest(BaseModel):
     code: str
 
 
+# --- форматирование узла ---
+def format_label(label):
+    lines = []
+
+    for stmt in label.body:
+        name = stmt.__class__.__name__
+
+        if name == "Say":
+            lines.append("Диалог")
+
+        elif name == "Assignment":
+            lines.append(f"{stmt.var} {stmt.op} {stmt.value}")
+
+        elif name == "Condition":
+            lines.append(f"if {stmt.var} {stmt.op} {stmt.value}")
+
+        elif name == "Jump":
+            lines.append(f"→ {stmt.target}")
+
+    return "\n".join(lines[:5])
+
+
+def full_code(label):
+    return "\n".join(str(stmt) for stmt in label.body)
+
+
+def build_recommendations(analysis):
+    recs = []
+
+    for node in analysis["unreachable"]:
+        recs.append(f"Узел '{node}' недостижим — добавьте переход")
+
+    for node in analysis["terminal_nodes"]:
+        recs.append(f"Узел '{node}' завершает сценарий — проверьте корректность")
+
+    for loop in analysis["infinite_loops"]:
+        recs.append(f"Бесконечный цикл: {' → '.join(loop)}")
+
+    for err in analysis["state"]["impossible_conditions"]:
+        recs.append(
+            f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (макс {err['range'][1]})"
+        )
+
+    return recs
+
+
 @app.post("/analyze")
 def analyze_script(req: ScriptRequest):
     parser = RenPyParser()
@@ -40,7 +86,27 @@ def analyze_script(req: ScriptRequest):
     for targets in graph.values():
         all_nodes.update(targets)
 
-    nodes = [{"data": {"id": k}} for k in all_nodes]
+    nodes = []
+    for k in all_nodes:
+        if k in script.labels:
+            label = script.labels[k]
+            nodes.append({
+                "data": {
+                    "id": k,
+                    "label": k,
+                    "summary": format_label(label),
+                    "code": full_code(label)
+                }
+            })
+        else:
+            nodes.append({
+                "data": {
+                    "id": k,
+                    "label": k,
+                    "summary": "Несуществующий label",
+                    "code": ""
+                }
+            })
 
     edges = [
         {"data": {"source": s, "target": t}}
@@ -53,14 +119,17 @@ def analyze_script(req: ScriptRequest):
     loop = InfiniteLoopAnalyzer()
     state = StateAnalyzer()
 
+    analysis = {
+        "unreachable": list(reach.find_unreachable(graph)),
+        "terminal_nodes": list(dead.find_dead_ends(graph)),
+        "missing": [n for n in all_nodes if n not in graph],
+        "infinite_loops": loop.find_infinite_loops(graph),
+        "state": state.analyze(script)
+    }
+
     return {
         "nodes": nodes,
         "edges": edges,
-        "analysis": {
-            "unreachable": list(reach.find_unreachable(graph)),
-            "dead_ends": list(dead.find_dead_ends(graph)),
-            "missing": [n for n in all_nodes if n not in graph],
-            "infinite_loops": loop.find_infinite_loops(graph),
-            "state": state.analyze(script)
-        }
+        "analysis": analysis,
+        "recommendations": build_recommendations(analysis)
     }
