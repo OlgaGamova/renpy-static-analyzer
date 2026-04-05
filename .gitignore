@@ -9,7 +9,8 @@ __pycache__/
 # Distribution / packaging
 .Python
 venv/
-#.html
+*.html
+!web/index.html
 build/
 develop-eggs/
 dist/
