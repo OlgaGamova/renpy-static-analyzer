@@ -1,10 +1,15 @@
 import sys
+
 from core.parser.parser import RenPyParser
 from core.parser.transformer import RenPyTransformer
+
 from core.graph.builder import GraphBuilder
 from core.graph.visualizer import GraphVisualizer
+
 from core.analysis.reachability import ReachabilityAnalyzer
 from core.analysis.dead_ends import DeadEndAnalyzer
+from core.analysis.infinite_loops import InfiniteLoopAnalyzer
+from core.analysis.state import StateAnalyzer
 
 
 def analyze_file(file_path: str):
@@ -12,50 +17,84 @@ def analyze_file(file_path: str):
     print(f"Analyzing: {file_path}")
     print("=" * 50)
 
+    # -------------------------
+    # PARSE
+    # -------------------------
     parser = RenPyParser()
     tree = parser.parse_file(file_path)
 
     print("\n=== PARSE TREE ===")
     print(tree.pretty())
 
+    # -------------------------
+    # TRANSFORM → IR
+    # -------------------------
     transformer = RenPyTransformer()
     script = transformer.transform(tree)
 
     print("\n=== IR MODEL ===")
     print(script)
 
+    # 🔥 КРИТИЧЕСКИЙ DEBUG (показывает реальные ноды)
+    print("\n=== DEBUG IR ===")
+    for label in script.labels.values():
+        print(f"\nLabel: {label.name}")
+        for node in label.body:
+            print("  ", type(node).__name__, node)
+
+    # -------------------------
+    # GRAPH
+    # -------------------------
     builder = GraphBuilder()
     graph = builder.build(script)
-
-    print("\n=== ANALYSIS ===")
-
-    reach = ReachabilityAnalyzer()
-    dead = DeadEndAnalyzer()
-
-    unreachable = reach.find_unreachable(graph)
-    dead_ends = dead.find_dead_ends(graph)
-
-    print(f"Unreachable nodes: {unreachable}")
-    print(f"Dead ends: {dead_ends}")
-
-    visualizer = GraphVisualizer()
-    visualizer.render(graph, output_file=f"{file_path.split('/')[-1]}.html")
 
     print("\n=== GRAPH ===")
     for src, targets in graph.items():
         for tgt in targets:
             print(f"{src} -> {tgt}")
 
+    # -------------------------
+    # ANALYSIS
+    # -------------------------
+    print("\n=== ANALYSIS ===")
+
+    reach = ReachabilityAnalyzer()
+    dead = DeadEndAnalyzer()
+    loops = InfiniteLoopAnalyzer()
+    state = StateAnalyzer()
+
+    unreachable = reach.find_unreachable(graph)
+    dead_ends = dead.find_dead_ends(graph)
+    infinite_loops = loops.find_infinite_loops(graph)
+    state_result = state.analyze(script)
+
+    print(f"\nUnreachable nodes: {unreachable}")
+    print(f"Dead ends: {dead_ends}")
+    print(f"Infinite loops: {infinite_loops}")
+
+    print("\nState analysis:")
+    if not state_result["impossible_conditions"]:
+        print("  Нет ошибок состояний")
+    else:
+        for err in state_result["impossible_conditions"]:
+            print(
+                f"  {err['label']}: {err['var']} >= {err['required']}, "
+                f"диапазон {err['range']}"
+            )
+
+    # -------------------------
+    # VISUALIZATION
+    # -------------------------
+    visualizer = GraphVisualizer()
+    visualizer.render(graph, output_file=f"{file_path.split('/')[-1]}.html")
+
 
 def main():
-
     if len(sys.argv) > 1:
         analyze_file(sys.argv[1])
     else:
         demo_files = [
-            "tests/samples/branching_complex.rpy",
-            "tests/samples/loop_story.rpy",
-            "tests/samples/nonlinear_story.rpy"
+            "tests/samples/state_error.rpy"
         ]
 
         for file_path in demo_files:

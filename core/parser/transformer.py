@@ -1,5 +1,5 @@
 from lark import Transformer
-from core.ir.model import Script, Label, Jump, Say, Menu, MenuOption
+from core.ir.model import Script, Label, Jump, Say, Menu, MenuOption, Assignment, Condition
 from lark import Transformer, Token
 
 class RenPyTransformer(Transformer):
@@ -47,3 +47,20 @@ class RenPyTransformer(Transformer):
 
     def statement(self, items):
         return items[0]
+
+    def assignment(self, items):
+        var = str(items[0])
+        value = int(items[1])
+        return Assignment(var=var, op="+=", value=value)
+
+    def condition(self, items):
+        var = str(items[0])
+        op = str(items[1])
+        value = int(items[2])
+
+        body = [
+            item for item in items[3:]
+            if not isinstance(item, Token)
+        ]
+
+        return Condition(var=var, op=op, value=value, body=body)

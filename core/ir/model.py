@@ -7,17 +7,11 @@ from typing import List, Optional, Any
 # -------------------------
 
 class Statement:
-    """
-    Базовый класс для всех операторов сценария.
-    """
     pass
 
 
 @dataclass
 class Script:
-    """
-    Весь сценарий Ren'Py.
-    """
     labels: dict[str, "Label"] = field(default_factory=dict)
 
     def add_label(self, label: "Label"):
@@ -25,46 +19,32 @@ class Script:
 
 
 # -------------------------
-# Структурные элементы
+# Структура
 # -------------------------
 
 @dataclass
 class Label(Statement):
-    """
-    label start:
-    """
     name: str
     body: List[Statement] = field(default_factory=list)
 
 
 @dataclass
 class Jump(Statement):
-    """
-    jump end
-    """
     target: str
 
 
 # -------------------------
-# Диалоги и выборы
+# Диалоги
 # -------------------------
 
 @dataclass
 class Say(Statement):
-    """
-    "Hello world"
-    """
     text: str
     character: Optional[str] = None
 
 
 @dataclass
 class Menu(Statement):
-    """
-    menu:
-        "Option 1":
-            jump a
-    """
     options: List["MenuOption"] = field(default_factory=list)
 
 
@@ -75,24 +55,19 @@ class MenuOption:
 
 
 # -------------------------
-# Переменные и условия
+# СОСТОЯНИЯ
 # -------------------------
 
 @dataclass
 class Assignment(Statement):
-    """
-    $ flag = True
-    """
-    variable: str
-    value: Any
+    var: str
+    op: str
+    value: int
 
 
 @dataclass
 class Condition(Statement):
-    """
-    if flag:
-        jump a
-    """
-    expression: str
+    var: str
+    op: str
+    value: int
     body: List[Statement] = field(default_factory=list)
-    else_body: List[Statement] = field(default_factory=list)
