@@ -1,163 +1,525 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>Ren'Py Analyzer</title>
+<title>Ren'Py Analyzer — визуальный анализатор сценариев</title>
 
 <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
 <script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
 <script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
 
 <style>
-body {
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #f5f5f7;
-  margin: 20px;
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
-button {
-  background: #0071e3;
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.container {
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+.header {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 20px 30px;
+  margin-bottom: 24px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+}
+
+.header h1 {
+  font-size: 28px;
+  color: #764ba2;
+  margin-bottom: 8px;
+}
+
+.header p {
+  color: #666;
+  font-size: 14px;
+}
+
+.controls {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 20px 30px;
+  margin-bottom: 24px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.file-label {
+  background: #f0f0f5;
+  padding: 10px 20px;
+  border-radius: 40px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-label:hover {
+  background: #e0e0e8;
+}
+
+.file-label input {
+  display: none;
+}
+
+.file-name {
+  font-size: 14px;
+  color: #666;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.analyze-btn {
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
   border: none;
-  border-radius: 8px;
-  padding: 8px 14px;
+  padding: 10px 28px;
+  border-radius: 40px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.panel {
-  background: white;
+.analyze-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102,126,234,0.4);
+}
+
+.analyze-btn:active {
+  transform: translateY(0);
+}
+
+.main-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.report-panel {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  height: fit-content;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.report-panel h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.report-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #444;
+  font-family: 'SF Mono', Monaco, monospace;
+}
+
+.report-section {
+  margin-bottom: 20px;
+}
+
+.report-section:last-child {
+  margin-bottom: 0;
+}
+
+.report-section-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.report-section-content {
+  padding-left: 0;
+}
+
+.recommendations-list {
+  margin-top: 8px;
+}
+
+.recommendations-list p {
+  margin-bottom: 4px;
+}
+
+.details-panel {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.details-panel h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.details-content {
+  font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+  font-size: 12px;
+  background: #f5f5f7;
+  color: #333;
+  padding: 16px;
   border-radius: 12px;
-  padding: 15px;
-  margin-top: 10px;
+  border: 1px solid #e0e0e8;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.graph-container {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+}
+
+.graph-container h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 #cy {
   width: 100%;
-  height: 600px;
-  background: white;
+  height: 500px;
+  background: #fafafa;
   border-radius: 12px;
-  margin-top: 15px;
+  transition: all 0.2s;
 }
 
-#nodeCode {
-  font-family: monospace;
-  white-space: pre-wrap;
+.legend {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #eee;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #666;
+}
+
+.legend-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  color: #999;
+}
+
+.empty-state {
+  color: #999;
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
 }
 </style>
 </head>
 
 <body>
 
-<h2>Анализатор сценариев Ren'Py</h2>
+<div class="container">
+  <div class="header">
+    <h1>🎮 Ren'Py Analyzer</h1>
+    <p>Статический анализ сценариев визуальных новелл</p>
+  </div>
 
-<input type="file" id="fileInput">
-<button onclick="analyze()">Анализировать</button>
+  <div class="controls">
+    <label class="file-label">
+      Выбрать файл
+      <input type="file" id="fileInput" accept=".rpy,.txt">
+    </label>
+    <span class="file-name" id="fileName">Файл не выбран</span>
+    <button class="analyze-btn" onclick="analyze()">
+      Анализировать
+    </button>
+  </div>
 
-<div class="panel" id="report">Нет данных</div>
-<div class="panel" id="nodeCode">Кликните на узел</div>
+  <div class="main-grid">
+    <div class="report-panel">
+      <h3>Отчёт об ошибках</h3>
+      <div class="report-content" id="report">Нет данных для отображения</div>
+    </div>
 
-<div id="cy"></div>
+    <div class="details-panel">
+      <h3>Детали узла</h3>
+      <div class="details-content" id="nodeCode">Кликните на любой узел графа</div>
+    </div>
+  </div>
+
+  <div class="graph-container">
+    <h3>Граф сюжета</h3>
+    <div id="cy"></div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-color" style="background:#4a90e2;"></div>Достижимый узел</div>
+      <div class="legend-item"><div class="legend-color" style="background:#8e8e93;"></div>Недостижимый узел</div>
+      <div class="legend-item"><div class="legend-color" style="background:#ff9500;"></div>Ошибка перехода</div>
+      <div class="legend-item"><div class="legend-color" style="background:#ffcc00;"></div>Потенциальный цикл</div>
+      <div class="legend-item"><div class="legend-color" style="background:#af52de;"></div>Ошибка состояния</div>
+    </div>
+  </div>
+</div>
 
 <script>
 let cy;
 
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const fileName = e.target.files[0]?.name || 'Файл не выбран';
+  document.getElementById('fileName').textContent = fileName;
+});
+
 async function analyze() {
-  const file = document.getElementById("fileInput").files[0];
+  const file = document.getElementById('fileInput').files[0];
+  if (!file) {
+    alert('Пожалуйста, выберите файл сценария');
+    return;
+  }
+
   const text = await file.text();
 
-  const res = await fetch("http://127.0.0.1:8000/analyze", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({code: text})
-  });
+  document.getElementById('report').innerHTML = '<div class="loading">Анализ выполняется...</div>';
+  document.getElementById('nodeCode').innerHTML = 'Кликните на любой узел графа';
 
-  const data = await res.json();
+  try {
+    const res = await fetch("http://127.0.0.1:8000/analyze", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({code: text})
+    });
 
-  if (cy) cy.destroy();
+    const data = await res.json();
 
-  cy = cytoscape({
-    container: document.getElementById('cy'),
-    elements: [...data.nodes, ...data.edges],
+    if (cy) cy.destroy();
 
-    style: [
-      {
-        selector: 'node',
-        style: {
-          'label': 'data(label)',
-          'background-color': '#4a90e2',
-          'color': '#fff',
-          'text-valign': 'center',
-          'text-halign': 'center',
+    cy = cytoscape({
+      container: document.getElementById('cy'),
+      elements: [...data.nodes, ...data.edges],
 
-          'width': 120,
-          'height': 50,
+      style: [
+        {
+          selector: 'node',
+          style: {
+            'label': 'data(label)',
+            'background-color': '#4a90e2',
+            'color': '#fff',
+            'text-valign': 'center',
+            'text-halign': 'center',
+            'width': 120,
+            'height': 50,
+            'text-wrap': 'wrap',
+            'text-max-width': '100px',
+            'padding': '10px',
+            'border-width': 2,
+            'border-color': '#ffffff',
+            'font-size': '11px',
+            'font-weight': '500',
+            'overlay-padding': 10,
+            'text-events': 'no'
+          }
+        },
+        {
+          selector: 'edge',
+          style: {
+            'width': 2,
+            'line-color': '#ccc',
+            'target-arrow-color': '#ccc',
+            'target-arrow-shape': 'triangle',
+            'curve-style': 'bezier'
+          }
+        },
+        { selector: '.unreachable', style: { 'background-color': '#8e8e93' }},
+        { selector: '.missing', style: { 'background-color': '#ff9500' }},
+        { selector: '.infinite', style: { 'background-color': '#ffcc00' }},
+        { selector: '.bad-state', style: { 'background-color': '#af52de' }}
+      ],
 
-          'text-wrap': 'wrap',
-          'text-max-width': '100px',
+      layout: {
+        name: 'dagre',
+        rankDir: 'TB',
+        animate: true,
+        animationDuration: 300
+      }
+    });
 
-          'padding': '10px',
-          'border-width': 2,
-          'border-color': '#ffffff',
-
-          'overlay-padding': 10,
-          'overlay-opacity': 0,
-
-          'text-events': 'no'
-        }
-      },
-      { selector: '.unreachable', style: { 'background-color': '#8e8e93' }},
-      { selector: '.missing', style: { 'background-color': '#ff9500' }},
-      { selector: '.infinite', style: { 'background-color': '#ffcc00' }},
-      { selector: '.bad-state', style: { 'background-color': '#af52de' }}
-    ],
-
-    layout: {
-      name: 'dagre',
-      rankDir: 'TB'
+    if (data.analysis) {
+      if (data.analysis.unreachable) {
+        data.analysis.unreachable.forEach(id => cy.getElementById(id)?.addClass('unreachable'));
+      }
+      if (data.analysis.missing) {
+        data.analysis.missing.forEach(id => cy.getElementById(id)?.addClass('missing'));
+      }
+      if (data.analysis.infinite_loops) {
+        data.analysis.infinite_loops.forEach(loop => {
+          loop.forEach(id => cy.getElementById(id)?.addClass('infinite'));
+        });
+      }
+      if (data.analysis.state?.impossible_conditions) {
+        data.analysis.state.impossible_conditions.forEach(p => {
+          cy.getElementById(p.label)?.addClass('bad-state');
+        });
+      }
     }
-  });
 
-  // --- подсветка ---
-  data.analysis.unreachable.forEach(id => cy.getElementById(id).addClass('unreachable'));
-  data.analysis.missing.forEach(id => cy.getElementById(id).addClass('missing'));
+    cy.on('click', 'node', function(evt) {
+      const n = evt.target;
+      const summary = n.data('summary') || 'Нет описания';
+      const code = n.data('code') || 'Нет кода';
+      document.getElementById("nodeCode").innerHTML = `
+        <strong>Узел: ${n.id()}</strong><br><br>
+        Описание:<br>${escapeHtml(summary)}<br><br>
+        Код:<br>${escapeHtml(code)}
+      `;
+    });
 
-  data.analysis.infinite_loops.forEach(loop => {
-    loop.forEach(id => cy.getElementById(id).addClass('infinite'));
-  });
+    let hasErrors = false;
+    let reportHtml = '';
+    const analysis = data.analysis || {};
 
-  data.analysis.state.impossible_conditions.forEach(p => {
-    cy.getElementById(p.label).addClass('bad-state');
-  });
+    if (analysis.unreachable?.length) {
+      hasErrors = true;
+      reportHtml += '<div class="report-section">';
+      reportHtml += '<div class="report-section-title">Недостижимые узлы</div>';
+      reportHtml += `<div class="report-section-content" style="color:#8e8e93;">${analysis.unreachable.join(', ')}</div>`;
+      reportHtml += '</div>';
+    }
 
-  // --- КЛИК ---
-  cy.on('click', 'node', function(evt) {
-    const n = evt.target;
+    if (analysis.missing?.length) {
+      hasErrors = true;
+      reportHtml += '<div class="report-section">';
+      reportHtml += '<div class="report-section-title">Ошибки переходов</div>';
+      reportHtml += `<div class="report-section-content" style="color:#ff9500;">${analysis.missing.join(', ')}</div>`;
+      reportHtml += '</div>';
+    }
 
-    document.getElementById("nodeCode").innerText =
-      "Узел: " + n.id() + "\n\n" +
-      "Кратко:\n" + n.data('summary') + "\n\n" +
-      "Код:\n" + n.data('code');
-  });
+    if (analysis.infinite_loops?.length) {
+      hasErrors = true;
+      reportHtml += '<div class="report-section">';
+      reportHtml += '<div class="report-section-title">Потенциальные циклы</div>';
+      reportHtml += `<div class="report-section-content" style="color:#ffcc00;">${analysis.infinite_loops.length}</div>`;
+      reportHtml += '</div>';
+    }
 
-  // --- ОТЧЕТ ---
-  let r = "";
+    if (analysis.state?.impossible_conditions?.length) {
+      hasErrors = true;
+      reportHtml += '<div class="report-section">';
+      reportHtml += '<div class="report-section-title">Ошибки состояний</div>';
+      reportHtml += '<div class="report-section-content">';
+      analysis.state.impossible_conditions.forEach(p => {
+        reportHtml += `<div style="margin-bottom: 12px; padding-left: 12px; border-left: 3px solid #af52de;">
+          <strong>${p.label}</strong><br>
+          Требуется: ${p.var} ${p.op} ${p.required}<br>
+          Диапазон: [${p.range[0]}, ${p.range[1]}]<br>
+          Путь: ${p.path.join(' → ')}
+        </div>`;
+      });
+      reportHtml += '</div></div>';
+    }
 
-  r += "Недостижимые: " + (data.analysis.unreachable.join(", ") || "нет") + "\n";
-  r += "Ошибки переходов: " + (data.analysis.missing.join(", ") || "нет") + "\n";
-  r += "Циклы: " + (data.analysis.infinite_loops.length || "нет") + "\n\n";
+    if (data.recommendations?.length) {
+      hasErrors = true;
+      reportHtml += '<div class="report-section">';
+      reportHtml += '<div class="report-section-title">Рекомендации</div>';
+      reportHtml += '<div class="report-section-content recommendations-list">';
+      data.recommendations.forEach(r => {
+        reportHtml += `<p>• ${escapeHtml(r)}</p>`;
+      });
+      reportHtml += '</div></div>';
+    }
 
-  data.analysis.state.impossible_conditions.forEach(p => {
-    r += `Ошибка состояния в ${p.label}\n`;
-    r += `Требуется: ${p.var} ≥ ${p.required}\n`;
-    r += `Максимум: ${p.range[1]}\n`;
-    r += `Путь: ${p.path.join(" → ")}\n\n`;
-  });
+    if (!hasErrors) {
+      reportHtml = '<div class="empty-state">Ошибок не найдено. Сценарий корректен!</div>';
+    }
 
-  r += "\nРекомендации:\n";
-  data.recommendations.forEach(rec => {
-    r += "- " + rec + "\n";
-  });
+    document.getElementById("report").innerHTML = reportHtml;
 
-  document.getElementById("report").innerText = r;
+  } catch (err) {
+    console.error(err);
+    document.getElementById('report').innerHTML = `<div style="color: #e74c3c;">Ошибка: ${err.message}</div>`;
+    document.getElementById('nodeCode').innerHTML = 'Ошибка подключения к серверу';
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 </script>
 
