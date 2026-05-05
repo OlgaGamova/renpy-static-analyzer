@@ -50,16 +50,29 @@ class RenPyTransformer(Transformer):
 
     def assignment(self, items):
         var = str(items[0])
-        value = int(items[1])
-        return Assignment(var=var, op="+=", value=value)
+        op = str(items[1])
+        val = items[2]
+        if str(val) == 'True':
+            value = 1
+        elif str(val) == 'False':
+            value = 0
+        else:
+            value = int(val)
+        return Assignment(var=var, op=op, value=value)
 
     def condition(self, items):
         var = str(items[0])
-        op = str(items[1])
-        value = int(items[2])
+        if items[1] is not None:
+            op = str(items[1])
+            value = int(items[2])
+            body_start = 3
+        else:
+            op = "!="
+            value = 0  # if var: means var != 0
+            body_start = 1
 
         body = [
-            item for item in items[3:]
+            item for item in items[body_start:]
             if not isinstance(item, Token)
         ]
 

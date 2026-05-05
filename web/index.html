@@ -362,6 +362,12 @@ async function analyze() {
 
     const data = await res.json();
 
+    if (data.error) {
+      document.getElementById('report').innerHTML = `<div style="color: #e74c3c;">Ошибка: ${escapeHtml(data.error)}</div>`;
+      document.getElementById('nodeCode').innerHTML = 'Произошла ошибка при анализе';
+      return;
+    }
+
     if (cy) cy.destroy();
 
     cy = cytoscape({

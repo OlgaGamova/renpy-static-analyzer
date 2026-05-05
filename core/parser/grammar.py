@@ -18,11 +18,15 @@ menu_option: STRING ":" _NEWLINE INDENT statement+ DEDENT
 
 say: STRING _NEWLINE?
 
-assignment: "$" NAME "+=" NUMBER _NEWLINE?
+assignment: "$" NAME OP_ASSIGN (NUMBER | NAME) _NEWLINE?
 
-condition: "if" NAME OP NUMBER ":" _NEWLINE INDENT statement+ DEDENT
+OP_ASSIGN: "+=" | "="
+
+condition: "if" NAME [OP NUMBER] ":" _NEWLINE INDENT statement+ DEDENT
 
 OP: ">=" | "<=" | ">" | "<" | "=="
+
+COMMENT: /#[^\n]*/
 
 %import common.CNAME -> NAME
 %import common.ESCAPED_STRING -> STRING
@@ -34,4 +38,5 @@ _NEWLINE: /(\r?\n[ \t]*)+/
 %declare INDENT DEDENT
 
 %ignore WS_INLINE
+%ignore COMMENT
 """

@@ -17,6 +17,7 @@ class RenPyParser:
         self._parser = Lark(
             RENPY_GRAMMAR,
             parser="lalr",
+            lexer="basic",
             postlex=RenPyIndenter(),
             propagate_positions=True,
         )
