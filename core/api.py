@@ -57,7 +57,7 @@ def full_code(label):
 def build_recommendations(analysis):
     recs = []
 
-    for item in analysis["unreachable"]:
+    for item in analysis["unreachable_with_lines"]:
         node = item["node"]
         line = item["line"]
         if line is not None:
@@ -65,7 +65,7 @@ def build_recommendations(analysis):
         else:
             recs.append(f"Узел '{node}' недостижим — добавьте переход")
 
-    for item in analysis["terminal_nodes"]:
+    for item in analysis["terminal_nodes_with_lines"]:
         node = item["node"]
         line = item["line"]
         if line is not None:
@@ -73,7 +73,7 @@ def build_recommendations(analysis):
         else:
             recs.append(f"Узел '{node}' завершает сценарий — проверьте корректность")
 
-    for loop in analysis["infinite_loops"]:
+    for loop in analysis["infinite_loops_with_lines"]:
         loop_nodes = [item["node"] for item in loop]
         loop_lines = [str(item["line"]) for item in loop if item["line"] is not None]
         if loop_lines:
@@ -149,7 +149,9 @@ def analyze_script(req: ScriptRequest):
 
         # Get line numbers for unreachable nodes
         unreachable_with_lines = []
+        unreachable_simple = []
         for node in reach.find_unreachable(graph):
+            unreachable_simple.append(node)
             if node in script.labels:
                 label = script.labels[node]
                 if hasattr(label, 'line') and label.line is not None:
@@ -161,7 +163,9 @@ def analyze_script(req: ScriptRequest):
 
         # Get line numbers for terminal nodes
         terminal_with_lines = []
+        terminal_simple = []
         for node in dead.find_dead_ends(graph):
+            terminal_simple.append(node)
             if node in script.labels:
                 label = script.labels[node]
                 if hasattr(label, 'line') and label.line is not None:
@@ -173,9 +177,12 @@ def analyze_script(req: ScriptRequest):
 
         # Get line numbers for infinite loops
         infinite_loops_with_lines = []
+        infinite_loops_simple = []
         for loop in loop.find_infinite_loops(graph):
             loop_with_lines = []
+            loop_simple = []
             for node in loop:
+                loop_simple.append(node)
                 if node in script.labels:
                     label = script.labels[node]
                     if hasattr(label, 'line') and label.line is not None:
@@ -185,12 +192,16 @@ def analyze_script(req: ScriptRequest):
                 else:
                     loop_with_lines.append({"node": node, "line": None})
             infinite_loops_with_lines.append(loop_with_lines)
+            infinite_loops_simple.append(loop_simple)
 
         analysis = {
-            "unreachable": unreachable_with_lines,
-            "terminal_nodes": terminal_with_lines,
+            "unreachable": unreachable_simple,
+            "unreachable_with_lines": unreachable_with_lines,
+            "terminal_nodes": terminal_simple,
+            "terminal_nodes_with_lines": terminal_with_lines,
             "missing": [n for n in all_nodes if n not in graph],
-            "infinite_loops": infinite_loops_with_lines,
+            "infinite_loops": infinite_loops_simple,
+            "infinite_loops_with_lines": infinite_loops_with_lines,
             "state": state.analyze(script)
         }
 

@@ -161,6 +161,26 @@ body {
   background: rgba(175, 82, 222, 0.3) !important;
 }
 
+.unreachable {
+  background-color: #8e8e93 !important;
+  border: 2px solid #666 !important;
+}
+
+.missing {
+  background-color: #ff9500 !important;
+  border: 2px solid #cc7a00 !important;
+}
+
+.infinite {
+  background-color: #ffcc00 !important;
+  border: 2px solid #ccaa00 !important;
+}
+
+.bad-state {
+  background-color: #af52de !important;
+  border: 2px solid #8a41b3 !important;
+}
+
 .download-btn {
   background: linear-gradient(135deg, #4CAF50, #2E7D32);
   color: white;
@@ -576,20 +596,79 @@ async function analyze() {
     });
 
     if (data.analysis) {
-      if (data.analysis.unreachable) {
-        data.analysis.unreachable.forEach(id => cy.getElementById(id)?.addClass('unreachable'));
-      }
-      if (data.analysis.missing) {
-        data.analysis.missing.forEach(id => cy.getElementById(id)?.addClass('missing'));
-      }
-      if (data.analysis.infinite_loops) {
-        data.analysis.infinite_loops.forEach(loop => {
-          loop.forEach(id => cy.getElementById(id)?.addClass('infinite'));
+      // Highlight unreachable nodes
+      if (data.analysis.unreachable && Array.isArray(data.analysis.unreachable)) {
+        data.analysis.unreachable.forEach(item => {
+          let nodeId;
+          if (typeof item === 'string') {
+            nodeId = item;
+          } else if (item && typeof item === 'object') {
+            nodeId = item.node || item.id || item.label || String(item);
+          } else {
+            nodeId = String(item);
+          }
+          const node = cy.getElementById(nodeId);
+          if (node) {
+            node.addClass('unreachable');
+          }
         });
       }
-      if (data.analysis.state?.impossible_conditions) {
-        data.analysis.state.impossible_conditions.forEach(p => {
-          cy.getElementById(p.label)?.addClass('bad-state');
+      
+      // Highlight missing nodes
+      if (data.analysis.missing && Array.isArray(data.analysis.missing)) {
+        data.analysis.missing.forEach(item => {
+          let nodeId;
+          if (typeof item === 'string') {
+            nodeId = item;
+          } else if (item && typeof item === 'object') {
+            nodeId = item.node || item.id || item.label || String(item);
+          } else {
+            nodeId = String(item);
+          }
+          const node = cy.getElementById(nodeId);
+          if (node) {
+            node.addClass('missing');
+          }
+        });
+      }
+      
+      // Highlight infinite loops - handle API's object format
+      if (data.analysis.infinite_loops && Array.isArray(data.analysis.infinite_loops)) {
+        data.analysis.infinite_loops.forEach(loop => {
+          if (Array.isArray(loop)) {
+            loop.forEach(item => {
+              let nodeId;
+              if (typeof item === 'string') {
+                nodeId = item;
+              } else if (item && typeof item === 'object') {
+                nodeId = item.node || item.id || item.label || String(item);
+              } else {
+                nodeId = String(item);
+              }
+              const node = cy.getElementById(nodeId);
+              if (node) {
+                node.addClass('infinite');
+              }
+            });
+          }
+        });
+      }
+      
+      // Highlight state errors
+      if (data.analysis.state?.impossible_conditions && Array.isArray(data.analysis.state.impossible_conditions)) {
+        data.analysis.state.impossible_conditions.forEach(err => {
+          let nodeId;
+          if (typeof err === 'string') {
+            nodeId = err;
+          } else if (err && typeof err === 'object') {
+            nodeId = err.label || err.node || err.id || String(err);
+          } else {
+            nodeId = String(err);
+          }
+          const node = cy.getElementById(nodeId);
+          if (node) {
+            node.addClass('bad-state');
+          }
         });
       }
       
@@ -616,7 +695,16 @@ async function analyze() {
       hasErrors = true;
       reportHtml += '<div class="report-section">';
       reportHtml += '<div class="report-section-title">Недостижимые узлы</div>';
-      reportHtml += `<div class="report-section-content" style="color:#8e8e93;">${analysis.unreachable.join(', ')}</div>`;
+      const unreachableNodes = analysis.unreachable.map(item => {
+        if (typeof item === 'string') {
+          return item;
+        } else if (item && typeof item === 'object') {
+          return item.node || item.id || item.label || String(item);
+        } else {
+          return String(item);
+        }
+      });
+      reportHtml += `<div class="report-section-content" style="color:#8e8e93;">${unreachableNodes.join(', ')}</div>`;
       reportHtml += '</div>';
     }
 
@@ -624,7 +712,16 @@ async function analyze() {
       hasErrors = true;
       reportHtml += '<div class="report-section">';
       reportHtml += '<div class="report-section-title">Ошибки переходов</div>';
-      reportHtml += `<div class="report-section-content" style="color:#ff9500;">${analysis.missing.join(', ')}</div>`;
+      const missingNodes = analysis.missing.map(item => {
+        if (typeof item === 'string') {
+          return item;
+        } else if (item && typeof item === 'object') {
+          return item.node || item.id || item.label || String(item);
+        } else {
+          return String(item);
+        }
+      });
+      reportHtml += `<div class="report-section-content" style="color:#ff9500;">${missingNodes.join(', ')}</div>`;
       reportHtml += '</div>';
     }
 

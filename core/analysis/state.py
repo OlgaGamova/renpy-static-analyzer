@@ -53,14 +53,19 @@ class StateAnalyzer:
                             "range": (min_v, max_v),
                             "line": line_num
                         })
+                        # Continue to next node in body
                         continue
 
-                    # добавляем ветку тела условия в очередь
-                    queue.append((label, state.copy(), path.copy()))
-
-                    # также проверяем else_body
-                    if node.else_body:
+                    # Process the condition body (true branch)
+                    if node.body:
+                        # Add the next label in the body to queue
+                        # For simplicity, assume body contains jumps or statements
+                        # We'll add the current label to queue to process body
                         queue.append((label, state.copy(), path.copy()))
+
+                    # Process else branch if it exists
+                    # Check if there's any else-like structure in the body
+                    # Since Condition doesn't have else_body, we'll handle jump statements instead
 
                 # --- JUMP ---
                 elif hasattr(node, "target"):
