@@ -7,6 +7,10 @@
 <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
 <script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
 <script src="https://unpkg.com/cytoscape-dagre/cytoscape-dagre.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
 
 <style>
 * {
@@ -116,9 +120,63 @@ body {
 
 .main-grid {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 320px 1fr 1fr;
   gap: 24px;
   margin-bottom: 24px;
+}
+
+.editor-panel {
+  background: rgba(255,255,255,0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  height: fit-content;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.editor-panel h3 {
+  font-size: 16px;
+  margin-bottom: 16px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.CodeMirror {
+  height: 400px !important;
+  border-radius: 12px;
+  border: 1px solid #e0e0e8;
+}
+
+.cm-unreachable {
+  background: rgba(142, 142, 147, 0.3) !important;
+}
+
+.cm-state-error {
+  background: rgba(175, 82, 222, 0.3) !important;
+}
+
+.download-btn {
+  background: linear-gradient(135deg, #4CAF50, #2E7D32);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 40px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 16px;
+}
+
+.download-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
 }
 
 .report-panel {
@@ -318,6 +376,12 @@ body {
       <h3>Детали узла</h3>
       <div class="details-content" id="nodeCode">Кликните на любой узел графа</div>
     </div>
+
+    <div class="editor-panel">
+      <h3>Редактор кода</h3>
+      <div id="editor"></div>
+      <button class="download-btn" onclick="downloadFile()">Скачать файл</button>
+    </div>
   </div>
 
   <div class="graph-container">
@@ -335,6 +399,91 @@ body {
 
 <script>
 let cy;
+let editor;
+let currentFileContent = '';
+
+// Initialize CodeMirror editor
+function initEditor() {
+  if (editor) return;
+  
+  editor = CodeMirror(document.getElementById('editor'), {
+    value: '',
+    mode: 'python',
+    theme: 'monokai',
+    lineNumbers: true,
+    lineWrapping: true,
+    readOnly: false,
+    viewportMargin: Infinity
+  });
+}
+
+// Highlight lines based on analysis results
+function highlightLines(analysis) {
+  if (!editor) return;
+  
+  // Clear previous highlights
+  editor.operation(function() {
+    editor.getAllMarks().forEach(function(mark) {
+      mark.clear();
+    });
+  });
+  
+  // Highlight unreachable nodes
+  if (analysis.unreachable && analysis.unreachable.length > 0) {
+    analysis.unreachable.forEach(item => {
+      if (item.line && item.line > 0) {
+        const from = {line: item.line - 1, ch: 0};
+        const to = {line: item.line - 1, ch: 1000};
+        editor.markText(from, to, {
+          className: 'cm-unreachable',
+          title: 'Недостижимый узел'
+        });
+      }
+    });
+  }
+  
+  // Highlight state errors
+  if (analysis.state && analysis.state.impossible_conditions && analysis.state.impossible_conditions.length > 0) {
+    analysis.state.impossible_conditions.forEach(err => {
+      if (err.line && err.line > 0) {
+        const from = {line: err.line - 1, ch: 0};
+        const to = {line: err.line - 1, ch: 1000};
+        editor.markText(from, to, {
+          className: 'cm-state-error',
+          title: 'Ошибка состояния'
+        });
+      }
+    });
+  }
+}
+
+// Download current editor content as file
+function downloadFile() {
+  if (!editor || !currentFileContent) return;
+  
+  const blob = new Blob([editor.getValue()], {type: 'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'edited_script.rpy';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Set editor content
+function setEditorContent(content) {
+  if (editor) {
+    editor.setValue(content);
+    currentFileContent = content;
+  }
+}
+
+// Get current editor content
+function getEditorContent() {
+  return editor ? editor.getValue() : '';
+}
 
 document.getElementById('fileInput').addEventListener('change', function(e) {
   const fileName = e.target.files[0]?.name || 'Файл не выбран';
@@ -349,6 +498,12 @@ async function analyze() {
   }
 
   const text = await file.text();
+
+  // Initialize editor if not already initialized
+  initEditor();
+  
+  // Set editor content
+  setEditorContent(text);
 
   document.getElementById('report').innerHTML = '<div class="loading">Анализ выполняется...</div>';
   document.getElementById('nodeCode').innerHTML = 'Кликните на любой узел графа';
@@ -437,6 +592,9 @@ async function analyze() {
           cy.getElementById(p.label)?.addClass('bad-state');
         });
       }
+      
+      // Highlight lines in editor
+      highlightLines(data.analysis);
     }
 
     cy.on('click', 'node', function(evt) {

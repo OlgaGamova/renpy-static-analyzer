@@ -13,37 +13,48 @@ class RenPyTransformer(Transformer):
 
     def label(self, items):
         name = str(items[0])
+        line = getattr(items[0], 'line', None)
+        column = getattr(items[0], 'column', None)
 
         body = [
             item for item in items[1:]
             if not isinstance(item, Token)
         ]
 
-        return Label(name=name, body=body)
+        return Label(name=name, body=body, line=line, column=column)
 
     def jump(self, items):
-        return Jump(target=str(items[0]))
+        target = str(items[0])
+        line = getattr(items[0], 'line', None)
+        column = getattr(items[0], 'column', None)
+        return Jump(target=target, line=line, column=column)
 
     def say(self, items):
         text = items[0][1:-1]
-        return Say(text=text)
+        line = getattr(items[0], 'line', None)
+        column = getattr(items[0], 'column', None)
+        return Say(text=text, line=line, column=column)
 
     def menu(self, items):
         options = [
             item for item in items
             if not isinstance(item, Token)
         ]
-        return Menu(options=options)
+        line = getattr(items[0], 'line', None) if items else None
+        column = getattr(items[0], 'column', None) if items else None
+        return Menu(options=options, line=line, column=column)
 
     def menu_option(self, items):
         text = items[0][1:-1]
+        line = getattr(items[0], 'line', None)
+        column = getattr(items[0], 'column', None)
 
         body = [
             item for item in items[1:]
             if not isinstance(item, Token)
         ]
 
-        return MenuOption(text=text, body=body)
+        return MenuOption(text=text, body=body, line=line, column=column)
 
     def statement(self, items):
         return items[0]
@@ -52,16 +63,20 @@ class RenPyTransformer(Transformer):
         var = str(items[0])
         op = str(items[1])
         val = items[2]
+        line = getattr(items[0], 'line', None)
+        column = getattr(items[0], 'column', None)
         if str(val) == 'True':
             value = 1
         elif str(val) == 'False':
             value = 0
         else:
             value = int(val)
-        return Assignment(var=var, op=op, value=value)
+        return Assignment(var=var, op=op, value=value, line=line, column=column)
 
     def condition(self, items):
         var = str(items[0])
+        line = getattr(items[0], 'line', None)
+        column = getattr(items[0], 'column', None)
         if items[1] is not None:
             op = str(items[1])
             value = int(items[2])
@@ -76,4 +91,4 @@ class RenPyTransformer(Transformer):
             if not isinstance(item, Token)
         ]
 
-        return Condition(var=var, op=op, value=value, body=body)
+        return Condition(var=var, op=op, value=value, body=body, line=line, column=column)

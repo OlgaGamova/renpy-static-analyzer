@@ -57,19 +57,40 @@ def full_code(label):
 def build_recommendations(analysis):
     recs = []
 
-    for node in analysis["unreachable"]:
-        recs.append(f"Узел '{node}' недостижим — добавьте переход")
+    for item in analysis["unreachable"]:
+        node = item["node"]
+        line = item["line"]
+        if line is not None:
+            recs.append(f"Узел '{node}' недостижим — добавьте переход (строка {line})")
+        else:
+            recs.append(f"Узел '{node}' недостижим — добавьте переход")
 
-    for node in analysis["terminal_nodes"]:
-        recs.append(f"Узел '{node}' завершает сценарий — проверьте корректность")
+    for item in analysis["terminal_nodes"]:
+        node = item["node"]
+        line = item["line"]
+        if line is not None:
+            recs.append(f"Узел '{node}' завершает сценарий — проверьте корректность (строка {line})")
+        else:
+            recs.append(f"Узел '{node}' завершает сценарий — проверьте корректность")
 
     for loop in analysis["infinite_loops"]:
-        recs.append(f"Бесконечный цикл: {' → '.join(loop)}")
+        loop_nodes = [item["node"] for item in loop]
+        loop_lines = [str(item["line"]) for item in loop if item["line"] is not None]
+        if loop_lines:
+            recs.append(f"Бесконечный цикл: {' → '.join(loop_nodes)} (строки {', '.join(loop_lines)})")
+        else:
+            recs.append(f"Бесконечный цикл: {' → '.join(loop_nodes)}")
 
     for err in analysis["state"]["impossible_conditions"]:
-        recs.append(
-            f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (макс {err['range'][1]})"
-        )
+        line = err.get("line", None)
+        if line is not None:
+            recs.append(
+                f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (макс {err['range'][1]}) (строка {line})"
+            )
+        else:
+            recs.append(
+                f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (макс {err['range'][1]})"
+            )
 
     return recs
 
@@ -94,12 +115,14 @@ def analyze_script(req: ScriptRequest):
         for k in all_nodes:
             if k in script.labels:
                 label = script.labels[k]
+                line_num = getattr(label, 'line', None)
                 nodes.append({
                     "data": {
                         "id": k,
                         "label": k,
                         "summary": format_label(label),
-                        "code": full_code(label)
+                        "code": full_code(label),
+                        "line": line_num
                     }
                 })
             else:
@@ -108,7 +131,8 @@ def analyze_script(req: ScriptRequest):
                         "id": k,
                         "label": k,
                         "summary": "Несуществующий label",
-                        "code": ""
+                        "code": "",
+                        "line": None
                     }
                 })
 
@@ -123,11 +147,50 @@ def analyze_script(req: ScriptRequest):
         loop = InfiniteLoopAnalyzer()
         state = StateAnalyzer()
 
+        # Get line numbers for unreachable nodes
+        unreachable_with_lines = []
+        for node in reach.find_unreachable(graph):
+            if node in script.labels:
+                label = script.labels[node]
+                if hasattr(label, 'line') and label.line is not None:
+                    unreachable_with_lines.append({"node": node, "line": label.line})
+                else:
+                    unreachable_with_lines.append({"node": node, "line": None})
+            else:
+                unreachable_with_lines.append({"node": node, "line": None})
+
+        # Get line numbers for terminal nodes
+        terminal_with_lines = []
+        for node in dead.find_dead_ends(graph):
+            if node in script.labels:
+                label = script.labels[node]
+                if hasattr(label, 'line') and label.line is not None:
+                    terminal_with_lines.append({"node": node, "line": label.line})
+                else:
+                    terminal_with_lines.append({"node": node, "line": None})
+            else:
+                terminal_with_lines.append({"node": node, "line": None})
+
+        # Get line numbers for infinite loops
+        infinite_loops_with_lines = []
+        for loop in loop.find_infinite_loops(graph):
+            loop_with_lines = []
+            for node in loop:
+                if node in script.labels:
+                    label = script.labels[node]
+                    if hasattr(label, 'line') and label.line is not None:
+                        loop_with_lines.append({"node": node, "line": label.line})
+                    else:
+                        loop_with_lines.append({"node": node, "line": None})
+                else:
+                    loop_with_lines.append({"node": node, "line": None})
+            infinite_loops_with_lines.append(loop_with_lines)
+
         analysis = {
-            "unreachable": list(reach.find_unreachable(graph)),
-            "terminal_nodes": list(dead.find_dead_ends(graph)),
+            "unreachable": unreachable_with_lines,
+            "terminal_nodes": terminal_with_lines,
             "missing": [n for n in all_nodes if n not in graph],
-            "infinite_loops": loop.find_infinite_loops(graph),
+            "infinite_loops": infinite_loops_with_lines,
             "state": state.analyze(script)
         }
 

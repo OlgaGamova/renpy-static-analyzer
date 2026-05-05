@@ -42,12 +42,16 @@ class StateAnalyzer:
                 elif isinstance(node, Condition):
                     min_v, max_v = state.get(node.var, (0, 0))
                     if not self._check(min_v, max_v, node.op, node.value):
+                        # Get line number from condition node if available
+                        line_num = getattr(node, 'line', None)
+                        
                         results["impossible_conditions"].append({
                             "label": label,
                             "path": path.copy(),
                             "var": node.var,
                             "required": node.value,
-                            "range": (min_v, max_v)
+                            "range": (min_v, max_v),
+                            "line": line_num
                         })
                         continue
 
