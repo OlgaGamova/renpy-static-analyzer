@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from core.parser.parser import RenPyParser
 from core.parser.transformer import RenPyTransformer
@@ -19,6 +20,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.mount("/static", StaticFiles(directory="web"), name="static")
 
 
 class ScriptRequest(BaseModel):
@@ -73,63 +76,72 @@ def build_recommendations(analysis):
 
 @app.post("/analyze")
 def analyze_script(req: ScriptRequest):
-    parser = RenPyParser()
-    tree = parser.parse_text(req.code)
+    try:
+        parser = RenPyParser()
+        tree = parser.parse_text(req.code)
 
-    transformer = RenPyTransformer()
-    script = transformer.transform(tree)
+        transformer = RenPyTransformer()
+        script = transformer.transform(tree)
 
-    builder = GraphBuilder()
-    graph = builder.build(script)
+        builder = GraphBuilder()
+        graph = builder.build(script)
 
-    all_nodes = set(graph.keys())
-    for targets in graph.values():
-        all_nodes.update(targets)
+        all_nodes = set(graph.keys())
+        for targets in graph.values():
+            all_nodes.update(targets)
 
-    nodes = []
-    for k in all_nodes:
-        if k in script.labels:
-            label = script.labels[k]
-            nodes.append({
-                "data": {
-                    "id": k,
-                    "label": k,
-                    "summary": format_label(label),
-                    "code": full_code(label)
-                }
-            })
-        else:
-            nodes.append({
-                "data": {
-                    "id": k,
-                    "label": k,
-                    "summary": "Несуществующий label",
-                    "code": ""
-                }
-            })
+        nodes = []
+        for k in all_nodes:
+            if k in script.labels:
+                label = script.labels[k]
+                nodes.append({
+                    "data": {
+                        "id": k,
+                        "label": k,
+                        "summary": format_label(label),
+                        "code": full_code(label)
+                    }
+                })
+            else:
+                nodes.append({
+                    "data": {
+                        "id": k,
+                        "label": k,
+                        "summary": "Несуществующий label",
+                        "code": ""
+                    }
+                })
 
-    edges = [
-        {"data": {"source": s, "target": t}}
-        for s, targets in graph.items()
-        for t in targets
-    ]
+        edges = [
+            {"data": {"source": s, "target": t}}
+            for s, targets in graph.items()
+            for t in targets
+        ]
 
-    reach = ReachabilityAnalyzer()
-    dead = DeadEndAnalyzer()
-    loop = InfiniteLoopAnalyzer()
-    state = StateAnalyzer()
+        reach = ReachabilityAnalyzer()
+        dead = DeadEndAnalyzer()
+        loop = InfiniteLoopAnalyzer()
+        state = StateAnalyzer()
 
-    analysis = {
-        "unreachable": list(reach.find_unreachable(graph)),
-        "terminal_nodes": list(dead.find_dead_ends(graph)),
-        "missing": [n for n in all_nodes if n not in graph],
-        "infinite_loops": loop.find_infinite_loops(graph),
-        "state": state.analyze(script)
-    }
+        analysis = {
+            "unreachable": list(reach.find_unreachable(graph)),
+            "terminal_nodes": list(dead.find_dead_ends(graph)),
+            "missing": [n for n in all_nodes if n not in graph],
+            "infinite_loops": loop.find_infinite_loops(graph),
+            "state": state.analyze(script)
+        }
 
-    return {
-        "nodes": nodes,
-        "edges": edges,
-        "analysis": analysis,
-        "recommendations": build_recommendations(analysis)
-    }
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "analysis": analysis,
+            "recommendations": build_recommendations(analysis)
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "nodes": [],
+            "edges": [],
+            "analysis": {},
+            "recommendations": []
+        }

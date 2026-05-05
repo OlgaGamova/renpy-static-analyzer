@@ -1,4 +1,5 @@
 import sys
+import os
 
 from core.parser.parser import RenPyParser
 from core.parser.transformer import RenPyTransformer
@@ -94,7 +95,7 @@ def main():
         analyze_file(sys.argv[1])
     else:
         demo_files = [
-            "tests/samples/state_error.rpy"
+            os.path.join(os.path.dirname(__file__), "..", "tests", "samples", "state_error.rpy")
         ]
 
         for file_path in demo_files:
