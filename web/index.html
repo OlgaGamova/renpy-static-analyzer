@@ -123,6 +123,7 @@ body {
   grid-template-columns: 320px 1fr 1fr;
   gap: 24px;
   margin-bottom: 24px;
+  height: 600px;
 }
 
 .editor-panel {
@@ -131,26 +132,39 @@ body {
   border-radius: 20px;
   padding: 20px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-  height: fit-content;
-  max-height: 500px;
-  overflow-y: auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .editor-panel h3 {
   font-size: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   color: #333;
   display: flex;
   align-items: center;
   gap: 8px;
   padding-bottom: 12px;
   border-bottom: 2px solid #f0f0f0;
+  flex-shrink: 0;
+}
+
+.editor-wrapper {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .CodeMirror {
-  height: 400px !important;
+  height: 100% !important;
+  flex: 1;
   border-radius: 12px;
   border: 1px solid #e0e0e8;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .cm-unreachable {
@@ -191,7 +205,8 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
-  margin-top: 16px;
+  margin-top: 12px;
+  flex-shrink: 0;
 }
 
 .download-btn:hover {
@@ -205,20 +220,22 @@ body {
   border-radius: 20px;
   padding: 20px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-  height: fit-content;
-  max-height: 500px;
-  overflow-y: auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .report-panel h3 {
   font-size: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   color: #333;
   display: flex;
   align-items: center;
   gap: 8px;
   padding-bottom: 12px;
   border-bottom: 2px solid #f0f0f0;
+  flex-shrink: 0;
 }
 
 .report-content {
@@ -226,6 +243,11 @@ body {
   line-height: 1.6;
   color: #444;
   font-family: 'SF Mono', Monaco, monospace;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding-right: 8px;
 }
 
 .report-section {
@@ -260,15 +282,20 @@ body {
   border-radius: 20px;
   padding: 20px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .details-panel h3 {
   font-size: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   color: #333;
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
 }
 
 .details-content {
@@ -279,10 +306,12 @@ body {
   padding: 16px;
   border-radius: 12px;
   border: 1px solid #e0e0e8;
-  overflow-x: auto;
+  overflow: auto;
   white-space: pre-wrap;
-  max-height: 250px;
-  overflow-y: auto;
+  word-wrap: break-word;
+  flex: 1;
+  min-height: 0;
+  line-height: 1.6;
 }
 
 .graph-container {
@@ -399,7 +428,9 @@ body {
 
     <div class="editor-panel">
       <h3>Редактор кода</h3>
-      <div id="editor"></div>
+      <div class="editor-wrapper">
+        <div id="editor"></div>
+      </div>
       <button class="download-btn" onclick="downloadFile()">Скачать файл</button>
     </div>
   </div>
@@ -421,6 +452,7 @@ body {
 let cy;
 let editor;
 let currentFileContent = '';
+let currentAnalysis = null; // Store analysis results for node click details
 
 // Initialize CodeMirror editor
 function initEditor() {
@@ -595,6 +627,9 @@ async function analyze() {
       }
     });
 
+    // Store analysis for node click details
+    currentAnalysis = data.analysis;
+
     if (data.analysis) {
       // Highlight unreachable nodes
       if (data.analysis.unreachable && Array.isArray(data.analysis.unreachable)) {
@@ -680,11 +715,35 @@ async function analyze() {
       const n = evt.target;
       const summary = n.data('summary') || 'Нет описания';
       const code = n.data('code') || 'Нет кода';
-      document.getElementById("nodeCode").innerHTML = `
-        <strong>Узел: ${n.id()}</strong><br><br>
-        Описание:<br>${escapeHtml(summary)}<br><br>
+      const line = n.data('line');
+      
+      // Build node details HTML
+      let detailsHtml = `
+        <strong>Узел: ${n.id()}</strong>
+        ${line ? `<br><span style="color: #666;">Строка: ${line}</span>` : ''}
+        <br><br>
+        Описание:<br>${escapeHtml(summary)}
+        <br><br>
         Код:<br>${escapeHtml(code)}
       `;
+      
+      // Add error warnings if this node has issues
+      if (currentAnalysis) {
+        const warnings = getNodeWarnings(n.id(), currentAnalysis);
+        if (warnings.length > 0) {
+          detailsHtml += '<br><br><div style="border-top: 2px solid #e74c3c; padding-top: 12px;">';
+          detailsHtml += '<strong style="color: #e74c3c;">⚠️ Предупреждения:</strong><br><br>';
+          warnings.forEach(warning => {
+            detailsHtml += `<div style="margin-bottom: 8px; padding: 8px; background: ${warning.bgColor}; border-left: 3px solid ${warning.borderColor}; border-radius: 4px;">
+              <strong>${warning.icon} ${warning.title}</strong><br>
+              <span style="font-size: 11px;">${warning.details}</span>
+            </div>`;
+          });
+          detailsHtml += '</div>';
+        }
+      }
+      
+      document.getElementById("nodeCode").innerHTML = detailsHtml;
     });
 
     let hasErrors = false;
@@ -781,6 +840,87 @@ function escapeHtml(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// Get warnings for a specific node based on analysis results
+function getNodeWarnings(nodeId, analysis) {
+  const warnings = [];
+  
+  // Check if node is unreachable
+  if (analysis.unreachable && Array.isArray(analysis.unreachable)) {
+    const isUnreachable = analysis.unreachable.some(item => {
+      const id = typeof item === 'string' ? item : (item.node || item.id || String(item));
+      return id === nodeId;
+    });
+    if (isUnreachable) {
+      warnings.push({
+        icon: '🚫',
+        title: 'Недостижимый узел',
+        details: 'Этот узел недостижим из начальной точки. Добавьте переход к нему или удалите, если он не нужен.',
+        bgColor: 'rgba(142, 142, 147, 0.1)',
+        borderColor: '#8e8e93'
+      });
+    }
+  }
+  
+  // Check if node has missing reference
+  if (analysis.missing && Array.isArray(analysis.missing)) {
+    const isMissing = analysis.missing.some(item => {
+      const id = typeof item === 'string' ? item : (item.node || item.id || String(item));
+      return id === nodeId;
+    });
+    if (isMissing) {
+      warnings.push({
+        icon: '❌',
+        title: 'Ошибка перехода',
+        details: 'Ссылка на этот узел существует, но сам узел не найден в графе. Проверьте правильность jump/call.',
+        bgColor: 'rgba(255, 149, 0, 0.1)',
+        borderColor: '#ff9500'
+      });
+    }
+  }
+  
+  // Check if node is in infinite loop
+  if (analysis.infinite_loops && Array.isArray(analysis.infinite_loops)) {
+    const isInLoop = analysis.infinite_loops.some(loop => {
+      if (Array.isArray(loop)) {
+        return loop.some(item => {
+          const id = typeof item === 'string' ? item : (item.node || item.id || String(item));
+          return id === nodeId;
+        });
+      }
+      return false;
+    });
+    if (isInLoop) {
+      warnings.push({
+        icon: '🔄',
+        title: 'Бесконечный цикл',
+        details: 'Этот узел участвует в бесконечном цикле. Добавьте условие выхода из цикла (например, проверку переменной или menu).',
+        bgColor: 'rgba(255, 204, 0, 0.1)',
+        borderColor: '#ffcc00'
+      });
+    }
+  }
+  
+  // Check if node has state errors
+  if (analysis.state && analysis.state.impossible_conditions && Array.isArray(analysis.state.impossible_conditions)) {
+    const stateErrors = analysis.state.impossible_conditions.filter(err => {
+      return err.label === nodeId;
+    });
+    if (stateErrors.length > 0) {
+      stateErrors.forEach(err => {
+        warnings.push({
+          icon: '⚠️',
+          title: 'Ошибка состояния',
+          details: `Требуется ${err.var} ≥ ${err.required}, но максимум: ${err.range[1]}.<br>Путь: ${err.path.join(' → ')}.<br>Решение: снизьте порог или добавьте больше выборов, дающих очки опыта.`,
+          bgColor: 'rgba(175, 82, 222, 0.1)',
+          borderColor: '#af52de'
+        });
+      });
+    }
+  }
+  
+  return warnings;
 }
 </script>
 
