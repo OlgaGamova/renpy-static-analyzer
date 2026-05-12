@@ -77,19 +77,19 @@ def build_recommendations(analysis):
         loop_nodes = [item["node"] for item in loop]
         loop_lines = [str(item["line"]) for item in loop if item["line"] is not None]
         if loop_lines:
-            recs.append(f"Бесконечный цикл: {' → '.join(loop_nodes)} (строки {', '.join(loop_lines)})")
+            recs.append(f"Бесконечный цикл: {' → '.join(loop_nodes)} (строки {', '.join(loop_lines)}) — добавьте условие выхода из цикла")
         else:
-            recs.append(f"Бесконечный цикл: {' → '.join(loop_nodes)}")
+            recs.append(f"Бесконечный цикл: {' → '.join(loop_nodes)} — добавьте условие выхода из цикла")
 
     for err in analysis["state"]["impossible_conditions"]:
         line = err.get("line", None)
         if line is not None:
             recs.append(
-                f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (макс {err['range'][1]}) (строка {line})"
+                f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (макс {err['range'][1]}) (строка {line}) — снизьте порог или добавьте больше выборов, дающих очки опыта"
             )
         else:
             recs.append(
-                f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (макс {err['range'][1]})"
+                f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (макс {err['range'][1]}) — снизьте порог или добавьте больше выборов, дающих очки опыта"
             )
 
     return recs
