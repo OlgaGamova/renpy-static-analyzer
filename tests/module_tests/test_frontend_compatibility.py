@@ -120,7 +120,7 @@ def test_huge_branching_secret_loop_frontend_compatibility():
     from pathlib import Path
     
     # Load huge_branching sample
-    samples_dir = Path(__file__).parent / "samples"
+    samples_dir = Path(__file__).parent.parent / "samples"
     huge_code = (samples_dir / "huge_branching.rpy").read_text(encoding="utf-8")
     
     # Mock request

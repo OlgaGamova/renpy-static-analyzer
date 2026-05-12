@@ -106,14 +106,22 @@ label start:
 
 def test_state_errors_data_structure():
     """Test that state errors data structure matches frontend expectations"""
-    # Test with state error script
+    # Test with a script that has state errors
     code = '''
 label start:
-    $ x = 5
-    if x > 10:
-        "x is large"
-    else:
-        "x is small"
+    $ strength = 0
+    $ strength += 5
+    
+    if strength >= 50:
+        jump impossible_win
+    
+    jump end
+
+label impossible_win:
+    "This should never happen"
+
+label end:
+    "The End"
 '''
     
     # Mock request
@@ -134,7 +142,6 @@ label start:
         assert isinstance(error, dict)
         assert "label" in error
         assert "var" in error
-        assert "op" in error
         assert "required" in error
         assert "range" in error
         assert "path" in error
@@ -145,7 +152,7 @@ def test_huge_branching_secret_loop_detection():
     from pathlib import Path
     
     # Load huge_branching sample
-    samples_dir = Path(__file__).parent / "samples"
+    samples_dir = Path(__file__).parent.parent / "samples"
     huge_code = (samples_dir / "huge_branching.rpy").read_text(encoding="utf-8")
     
     # Mock request

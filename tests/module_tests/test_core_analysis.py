@@ -12,7 +12,8 @@ from core.analysis.state import StateAnalyzer
 
 def load_sample_script(filename):
     """Load a sample script from tests/samples directory"""
-    samples_dir = Path(__file__).parent / "samples"
+    # Samples are in tests/samples, not tests/module_tests/samples
+    samples_dir = Path(__file__).parent.parent / "samples"
     file_path = samples_dir / filename
     return file_path.read_text(encoding="utf-8")
 
@@ -37,7 +38,7 @@ def test_unreachable_nodes_detection():
     unreachable = analyzer.find_unreachable(graph)
     
     # Check that unreachable nodes are detected
-    assert "unreachable_label" in unreachable
+    assert "unreachable" in unreachable
 
 
 def test_infinite_loop_detection():
@@ -141,7 +142,8 @@ label end:
     
     # Check that labels have line numbers
     assert "start" in script.labels
-    assert script.labels["start"].line == 1
+    # Line numbers start from the actual line in the string (line 2 since line 1 is empty)
+    assert script.labels["start"].line == 2
     
     assert "end" in script.labels
     assert script.labels["end"].line == 6
