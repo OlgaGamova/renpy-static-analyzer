@@ -1,4 +1,4 @@
-from core.ir.model import Assignment, Condition
+from core.ir.model import Assignment, Condition, Menu
 from collections import deque
 
 INF = float("inf")
@@ -14,7 +14,8 @@ class StateAnalyzer:
 
     def analyze(self, script):
         results = {
-            "impossible_conditions": []
+            "impossible_conditions": [],
+            "undefined_labels": []
         }
 
         # очередь для обхода: каждый элемент = (label, state, path)
@@ -22,14 +23,22 @@ class StateAnalyzer:
         queue.append(("start", {}, ["start"]))
 
         visited = set()
-        
-        # Special handling for training label to ensure it's processed
-        # This is a targeted fix for the specific issue reported by user
-        # where 'if strength >= 50:' in training label is not being detected
-        queue.append(("training", {"strength": (0, 18), "intelligence": (0, 18)}, ["start", "home", "training"]))
+        undefined_labels_checked = set()
 
         while queue:
             label, state, path = queue.popleft()
+            
+            # Skip if label doesn't exist in the script
+            if label not in script.labels:
+                # Report undefined label if not already reported
+                if label not in undefined_labels_checked:
+                    undefined_labels_checked.add(label)
+                    results["undefined_labels"].append({
+                        "label": label,
+                        "path": path.copy()
+                    })
+                continue
+            
             key = (label, self._key(state))
             if key in visited:
                 continue
@@ -81,19 +90,23 @@ class StateAnalyzer:
                     # Check if there's any else-like structure in the body
                     # Since Condition doesn't have else_body, we'll handle jump statements instead
 
+                # --- MENU ---
+                elif isinstance(node, Menu):
+                    # Handle menu options - each option leads to different paths
+                    for option in node.options:
+                        # Process each option's body
+                        option_state = state.copy()
+                        for stmt in option.body:
+                            if isinstance(stmt, Assignment):
+                                option_state = self._apply(option_state, stmt)
+                            elif hasattr(stmt, 'target'):
+                                # Add the target label with updated state
+                                queue.append((stmt.target, option_state.copy(), path + [stmt.target]))
+
                 # --- JUMP ---
                 elif hasattr(node, "target"):
                     # Process jump statements to ensure all paths are traversed
                     queue.append((node.target, state.copy(), path + [node.target]))
-                    
-                    # Also add current label to queue to process remaining statements
-                    # This ensures we don't miss conditions in the same label
-                    queue.append((label, state.copy(), path.copy()))
-                    
-                    # Special handling for training label to ensure it's processed
-                    if node.target == "training":
-                        # Force processing of training label with current state
-                        queue.append(("training", state.copy(), path + ["training"]))
 
         return results
 
