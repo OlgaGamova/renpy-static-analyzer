@@ -45,8 +45,12 @@ def test_huge_branching():
             print(f"  Referenced from path: {' → '.join(undef['path'])}")
             print()
     
-    # Verify expected errors
+    # Verify expected errors - the analyzer should find ALL impossible conditions
     expected_errors = [
+        {'label': 'forest_fight', 'var': 'strength'},
+        {'label': 'forest_hide', 'var': 'luck'},
+        {'label': 'library', 'var': 'intelligence'},
+        {'label': 'bar', 'var': 'luck'},
         {'label': 'training', 'var': 'strength'},
         {'label': 'reading', 'var': 'intelligence'},
     ]
