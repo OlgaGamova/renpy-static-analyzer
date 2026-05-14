@@ -1,0 +1,139 @@
+[
+  {
+    "script_name": "perf_deep_tree.rpy",
+    "file_size": 379455198,
+    "line_count": 22020084,
+    "label_count": 0,
+    "node_count": 0,
+    "edge_count": 0,
+    "timings": {},
+    "errors": [
+      "Ошибка парсинга: Unexpected token Token('INDENT', '        ') at line 204, column 25.\nExpected one of: \n\t* DOLLAR\n\t* LABEL\n\t* MENU\n\t* DEDENT\n\t* JUMP\n\t* STRING\n\t* IF\n"
+    ],
+    "timestamp": 1778776358.459995
+  },
+  {
+    "script_name": "perf_large_1000.rpy",
+    "file_size": 82073,
+    "line_count": 5543,
+    "label_count": 0,
+    "node_count": 0,
+    "edge_count": 0,
+    "timings": {},
+    "errors": [
+      "Ошибка парсинга: Unexpected token Token('INDENT', '        ') at line 76, column 16.\nExpected one of: \n\t* STRING\n\t* LABEL\n\t* MENU\n\t* DEDENT\n\t* JUMP\n\t* DOLLAR\n\t* IF\n"
+    ],
+    "timestamp": 1778776358.5248687
+  },
+  {
+    "script_name": "perf_large_2000.rpy",
+    "file_size": 164291,
+    "line_count": 10982,
+    "label_count": 0,
+    "node_count": 0,
+    "edge_count": 0,
+    "timings": {},
+    "errors": [
+      "Ошибка парсинга: Unexpected token Token('INDENT', '        ') at line 99, column 16.\nExpected one of: \n\t* STRING\n\t* LABEL\n\t* MENU\n\t* DEDENT\n\t* JUMP\n\t* DOLLAR\n\t* IF\n"
+    ],
+    "timestamp": 1778776358.552808
+  },
+  {
+    "script_name": "perf_linear_500.rpy",
+    "file_size": 26140,
+    "line_count": 1998,
+    "label_count": 500,
+    "node_count": 500,
+    "edge_count": 498,
+    "timings": {
+      "parsing": 0.0794638000006671,
+      "transformation": 0.007071500000165543,
+      "graph_building": 0.00038750000021536835,
+      "reachability": 6.570000186911784e-05,
+      "dead_ends": 3.0499999411404133e-05,
+      "infinite_loops": 0.0009572000017215032,
+      "state_analysis": 2.1800002286909148e-05,
+      "total": 0.08799800000633695
+    },
+    "errors": [],
+    "timestamp": 1778776358.6437488
+  },
+  {
+    "script_name": "perf_medium_250.rpy",
+    "file_size": 20438,
+    "line_count": 1398,
+    "label_count": 0,
+    "node_count": 0,
+    "edge_count": 0,
+    "timings": {},
+    "errors": [
+      "Ошибка парсинга: Unexpected token Token('INDENT', '        ') at line 62, column 15.\nExpected one of: \n\t* STRING\n\t* LABEL\n\t* MENU\n\t* DEDENT\n\t* JUMP\n\t* DOLLAR\n\t* IF\n"
+    ],
+    "timestamp": 1778776358.671032
+  },
+  {
+    "script_name": "perf_medium_500.rpy",
+    "file_size": 40513,
+    "line_count": 2757,
+    "label_count": 0,
+    "node_count": 0,
+    "edge_count": 0,
+    "timings": {},
+    "errors": [
+      "Ошибка парсинга: Unexpected token Token('INDENT', '        ') at line 73, column 16.\nExpected one of: \n\t* STRING\n\t* LABEL\n\t* MENU\n\t* DEDENT\n\t* JUMP\n\t* DOLLAR\n\t* IF\n"
+    ],
+    "timestamp": 1778776358.700934
+  },
+  {
+    "script_name": "perf_small_100.rpy",
+    "file_size": 8029,
+    "line_count": 556,
+    "label_count": 0,
+    "node_count": 0,
+    "edge_count": 0,
+    "timings": {},
+    "errors": [
+      "Ошибка парсинга: Unexpected token Token('INDENT', '        ') at line 42, column 15.\nExpected one of: \n\t* STRING\n\t* LABEL\n\t* MENU\n\t* DEDENT\n\t* JUMP\n\t* DOLLAR\n\t* IF\n"
+    ],
+    "timestamp": 1778776358.7284808
+  },
+  {
+    "script_name": "perf_small_50.rpy",
+    "file_size": 4029,
+    "line_count": 283,
+    "label_count": 0,
+    "node_count": 0,
+    "edge_count": 0,
+    "timings": {},
+    "errors": [
+      "Ошибка парсинга: Unexpected token Token('INDENT', '        ') at line 38, column 15.\nExpected one of: \n\t* STRING\n\t* LABEL\n\t* MENU\n\t* DEDENT\n\t* JUMP\n\t* DOLLAR\n\t* IF\n"
+    ],
+    "timestamp": 1778776358.755521
+  },
+  {
+    "script_name": "perf_wide_tree.rpy",
+    "file_size": 672369,
+    "line_count": 42183,
+    "label_count": 0,
+    "node_count": 0,
+    "edge_count": 0,
+    "timings": {},
+    "errors": [
+      "Ошибка парсинга: Unexpected token Token('INDENT', '        ') at line 54, column 24.\nExpected one of: \n\t* STRING\n\t* LABEL\n\t* MENU\n\t* DEDENT\n\t* JUMP\n\t* DOLLAR\n\t* IF\n"
+    ],
+    "timestamp": 1778776358.7859993
+  },
+  {
+    "script_name": "perf_xlarge_5000.rpy",
+    "file_size": 420879,
+    "line_count": 27565,
+    "label_count": 0,
+    "node_count": 0,
+    "edge_count": 0,
+    "timings": {},
+    "errors": [
+      "Ошибка парсинга: Unexpected token Token('INDENT', '        ') at line 127, column 16.\nExpected one of: \n\t* DOLLAR\n\t* LABEL\n\t* MENU\n\t* DEDENT\n\t* JUMP\n\t* STRING\n\t* IF\n"
+    ],
+    "timestamp": 1778776358.8181086
+  }
+]

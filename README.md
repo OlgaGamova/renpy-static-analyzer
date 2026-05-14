@@ -26,3 +26,40 @@ py -m cli.main <путь_к_файлу.rpy>
 ```
 py -m cli.main
 ```
+
+## Тестирование производительности
+
+Система включает полную инфраструктуру для тестирования производительности:
+
+### Быстрый старт
+```bash
+# Автоматический запуск всех тестов
+run_performance_tests.bat  # Windows
+python run_performance_tests.py  # Кроссплатформенно
+```
+
+### Что тестируется
+- **Генерация сценариев**: 50-5000 узлов с контролируемыми параметрами
+- **Бенчмарки**: замер времени каждого этапа анализа
+- **Сравнительные тесты**: оригинальные vs оптимизированные анализаторы
+- **Pytest тесты**: автоматические тесты производительности
+
+### Результаты
+- 📑 [PERFORMANCE_INDEX.md](PERFORMANCE_INDEX.md) - **НАЧНИТЕ ОТСЮДА!**
+- 📖 [PERFORMANCE_QUICKSTART.md](PERFORMANCE_QUICKSTART.md) - быстрый старт
+- 📖 [PERFORMANCE_TESTING.md](PERFORMANCE_TESTING.md) - подробное руководство
+- 📖 [PERFORMANCE_ANALYSIS.md](PERFORMANCE_ANALYSIS.md) - анализ проблем и оптимизации
+- 📖 [PERFORMANCE_FULL_GUIDE.md](PERFORMANCE_FULL_GUIDE.md) - полная инструкция
+- 📖 [PERFORMANCE_SUMMARY.md](PERFORMANCE_SUMMARY.md) - общая сводка
+
+### Пример
+```bash
+# Генерация сценариев
+python tests/generate_performance_scenarios.py
+
+# Запуск бенчмарков
+python tests/performance_benchmark.py --save
+
+# Сравнительный тест
+python tests/compare_analyzers.py --nodes 500
+```
