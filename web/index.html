@@ -152,10 +152,15 @@ body {
 
 .editor-wrapper {
   flex: 1;
-  overflow: hidden;
+  overflow: hidden;        /* ← скрываем внешний скролл */
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+#editor {
+  height: 100%;            /* ← обязательно для CodeMirror */
+  width: 100%;
 }
 
 .CodeMirror {
@@ -165,6 +170,16 @@ body {
   border: 1px solid #e0e0e8;
   font-size: 13px;
   line-height: 1.5;
+  /* overflow: auto – убрано, теперь скролл внутри .CodeMirror-scroll */
+}
+
+.CodeMirror-scroll {
+  overflow: auto !important;
+  min-height: 100% !important;
+}
+
+.CodeMirror-sizer {
+  overflow: visible !important;
 }
 
 .cm-unreachable {
@@ -475,11 +490,16 @@ function initEditor() {
     lineNumbers: true,
     lineWrapping: true,
     readOnly: false,
-    viewportMargin: Infinity
+    viewportMargin: 100,  // Render 100 lines above/below viewport for smooth scrolling
+    scrollbarStyle: 'native',  // Use native scrollbar for better performance
+    lineWiseCopyCut: true,
+    flattenSpans: true,  // Better performance for large files
+    addModeClass: true,  // Better syntax highlighting performance
+    wheelScrollLines: 3  // Enable mouse wheel scrolling (3 lines per scroll)
   });
 }
 
-// Highlight lines based on analysis results
+// Highlight lines based on analysis results - FULLY OPTIMIZED: NO iterations, use pre-computed line arrays only
 function highlightLines(analysis) {
   if (!editor) return;
   
@@ -490,47 +510,36 @@ function highlightLines(analysis) {
     });
   });
   
-  // Highlight unreachable nodes
-  if (analysis.unreachable && analysis.unreachable.length > 0) {
-    analysis.unreachable.forEach(item => {
-      if (item.line && item.line > 0) {
-        const from = {line: item.line - 1, ch: 0};
-        const to = {line: item.line - 1, ch: 1000};
-        editor.markText(from, to, {
-          className: 'cm-unreachable',
-          title: 'Недостижимый узел'
-        });
-      }
+  // ALL arrays are pre-computed on backend with line info - just iterate line numbers, not nodes
+  const allHighlights = [];
+  
+  // Collect all line highlights from pre-computed arrays
+  if (analysis.unreachable_with_lines?.length) {
+    analysis.unreachable_with_lines.forEach(item => {
+      if (item.line > 0) allHighlights.push({line: item.line, className: 'cm-unreachable', title: 'Недостижимый узел'});
     });
   }
   
-  // Highlight state errors
-  if (analysis.state && analysis.state.impossible_conditions && analysis.state.impossible_conditions.length > 0) {
-    analysis.state.impossible_conditions.forEach(err => {
-      if (err.line && err.line > 0) {
-        const from = {line: err.line - 1, ch: 0};
-        const to = {line: err.line - 1, ch: 1000};
-        editor.markText(from, to, {
-          className: 'cm-state-error',
-          title: 'Ошибка состояния'
-        });
-      }
+  if (analysis.state_errors_with_lines?.length) {
+    analysis.state_errors_with_lines.forEach(err => {
+      if (err.line > 0) allHighlights.push({line: err.line, className: 'cm-state-error', title: 'Ошибка состояния'});
     });
   }
-
-  // Highlight terminal (dead-end) nodes lines if API provided line numbers
-  if (analysis.terminal_nodes_with_lines && Array.isArray(analysis.terminal_nodes_with_lines)) {
+  
+  if (analysis.terminal_nodes_with_lines?.length) {
     analysis.terminal_nodes_with_lines.forEach(item => {
-      if (item && typeof item === 'object' && item.line && item.line > 0) {
-        const from = {line: item.line - 1, ch: 0};
-        const to = {line: item.line - 1, ch: 1000};
-        editor.markText(from, to, {
-          className: 'cm-dead-end',
-          title: 'Конечный узел'
-        });
-      }
+      if (item.line > 0) allHighlights.push({line: item.line, className: 'cm-dead-end', title: 'Конечный узел'});
     });
   }
+  
+  // Apply all highlights in single pass
+  editor.operation(function() {
+    allHighlights.forEach(h => {
+      const from = {line: h.line - 1, ch: 0};
+      const to = {line: h.line - 1, ch: 1000};
+      editor.markText(from, to, {className: h.className, title: h.title});
+    });
+  });
 }
 
 // Download current editor content as file
@@ -654,103 +663,16 @@ async function analyze() {
 
     // Store analysis for node click details
     currentAnalysis = data.analysis;
-
-    if (data.analysis) {
-      // Highlight unreachable nodes
-      if (data.analysis.unreachable && Array.isArray(data.analysis.unreachable)) {
-        data.analysis.unreachable.forEach(item => {
-          let nodeId;
-          if (typeof item === 'string') {
-            nodeId = item;
-          } else if (item && typeof item === 'object') {
-            nodeId = item.node || item.id || item.label || String(item);
-          } else {
-            nodeId = String(item);
-          }
-          const node = cy.getElementById(nodeId);
-          if (node) {
-            node.addClass('unreachable');
-          }
-        });
-      }
-      
-      // Highlight missing nodes
-      if (data.analysis.missing && Array.isArray(data.analysis.missing)) {
-        data.analysis.missing.forEach(item => {
-          let nodeId;
-          if (typeof item === 'string') {
-            nodeId = item;
-          } else if (item && typeof item === 'object') {
-            nodeId = item.node || item.id || item.label || String(item);
-          } else {
-            nodeId = String(item);
-          }
-          const node = cy.getElementById(nodeId);
-          if (node) {
-            node.addClass('missing');
-          }
-        });
-      }
-      
-      // Highlight infinite loops - handle API's object format
-      if (data.analysis.infinite_loops && Array.isArray(data.analysis.infinite_loops)) {
-        data.analysis.infinite_loops.forEach(loop => {
-          if (Array.isArray(loop)) {
-            loop.forEach(item => {
-              let nodeId;
-              if (typeof item === 'string') {
-                nodeId = item;
-              } else if (item && typeof item === 'object') {
-                nodeId = item.node || item.id || item.label || String(item);
-              } else {
-                nodeId = String(item);
-              }
-              const node = cy.getElementById(nodeId);
-              if (node) {
-                node.addClass('infinite');
-              }
-            });
-          }
-        });
-      }
-      
-      // Highlight state errors
-      if (data.analysis.state?.impossible_conditions && Array.isArray(data.analysis.state.impossible_conditions)) {
-        data.analysis.state.impossible_conditions.forEach(err => {
-          let nodeId;
-          if (typeof err === 'string') {
-            nodeId = err;
-          } else if (err && typeof err === 'object') {
-            nodeId = err.label || err.node || err.id || String(err);
-          } else {
-            nodeId = String(err);
-          }
-          const node = cy.getElementById(nodeId);
-          if (node) {
-            node.addClass('bad-state');
-          }
-        });
-      }
-      
-      // Highlight dead ends (terminal nodes)
-      if (data.analysis.terminal_nodes && Array.isArray(data.analysis.terminal_nodes)) {
-        data.analysis.terminal_nodes.forEach(nodeId => {
-          const node = cy.getElementById(nodeId);
-          if (node) {
-            node.addClass('dead-end');
-          }
-        });
-      }
-
-      // Highlight lines in editor
-      highlightLines(data.analysis);
-    }
+    
+    // Highlight lines in editor (still needed for code highlighting)
+    highlightLines(data.analysis);
 
     cy.on('click', 'node', function(evt) {
       const n = evt.target;
       const summary = n.data('summary') || 'Нет описания';
       const code = n.data('code') || 'Нет кода';
       const line = n.data('line');
+      const warnings = n.data('warnings') || []; // Use pre-computed warnings from backend
       
       // Build node details HTML
       let detailsHtml = `
@@ -762,20 +684,17 @@ async function analyze() {
         Код:<br>${escapeHtml(code)}
       `;
       
-      // Add error warnings if this node has issues
-      if (currentAnalysis) {
-        const warnings = getNodeWarnings(n.id(), currentAnalysis);
-        if (warnings.length > 0) {
-          detailsHtml += '<br><br><div style="border-top: 2px solid #e74c3c; padding-top: 12px;">';
-          detailsHtml += '<strong style="color: #e74c3c;">⚠️ Предупреждения:</strong><br><br>';
-          warnings.forEach(warning => {
-            detailsHtml += `<div style="margin-bottom: 8px; padding: 8px; background: ${warning.bgColor}; border-left: 3px solid ${warning.borderColor}; border-radius: 4px;">
-              <strong>${warning.icon} ${warning.title}</strong><br>
-              <span style="font-size: 11px;">${warning.details}</span>
-            </div>`;
-          });
-          detailsHtml += '</div>';
-        }
+      // Display pre-computed warnings - NO iteration needed
+      if (warnings.length > 0) {
+        detailsHtml += '<br><br><div style="border-top: 2px solid #e74c3c; padding-top: 12px;">';
+        detailsHtml += '<strong style="color: #e74c3c;">⚠️ Предупреждения:</strong><br><br>';
+        warnings.forEach(warning => {
+          detailsHtml += `<div style="margin-bottom: 8px; padding: 8px; background: rgba(231, 76, 60, 0.05); border-left: 3px solid #e74c3c; border-radius: 4px;">
+            <strong>${warning.icon} ${warning.title}</strong><br>
+            <span style="font-size: 11px;">${warning.details}</span>
+          </div>`;
+        });
+        detailsHtml += '</div>';
       }
       
       document.getElementById("nodeCode").innerHTML = detailsHtml;
@@ -785,20 +704,12 @@ async function analyze() {
     let reportHtml = '';
     const analysis = data.analysis || {};
 
+    // OPTIMIZED: Direct rendering without iteration - use pre-computed arrays
     if (analysis.unreachable?.length) {
       hasErrors = true;
       reportHtml += '<div class="report-section">';
       reportHtml += '<div class="report-section-title">Недостижимые узлы</div>';
-      const unreachableNodes = analysis.unreachable.map(item => {
-        if (typeof item === 'string') {
-          return item;
-        } else if (item && typeof item === 'object') {
-          return item.node || item.id || item.label || String(item);
-        } else {
-          return String(item);
-        }
-      });
-      reportHtml += `<div class="report-section-content" style="color:#8e8e93;">${unreachableNodes.join(', ')}</div>`;
+      reportHtml += `<div class="report-section-content" style="color:#8e8e93;">${analysis.unreachable.join(', ')}</div>`;
       reportHtml += '</div>';
     }
 
@@ -806,16 +717,7 @@ async function analyze() {
       hasErrors = true;
       reportHtml += '<div class="report-section">';
       reportHtml += '<div class="report-section-title">Ошибки переходов</div>';
-      const missingNodes = analysis.missing.map(item => {
-        if (typeof item === 'string') {
-          return item;
-        } else if (item && typeof item === 'object') {
-          return item.node || item.id || item.label || String(item);
-        } else {
-          return String(item);
-        }
-      });
-      reportHtml += `<div class="report-section-content" style="color:#ff9500;">${missingNodes.join(', ')}</div>`;
+      reportHtml += `<div class="report-section-content" style="color:#ff9500;">${analysis.missing.join(', ')}</div>`;
       reportHtml += '</div>';
     }
 
@@ -885,100 +787,6 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-// Get warnings for a specific node based on analysis results
-function getNodeWarnings(nodeId, analysis) {
-  const warnings = [];
-  
-  // Check if node is unreachable
-  if (analysis.unreachable && Array.isArray(analysis.unreachable)) {
-    const isUnreachable = analysis.unreachable.some(item => {
-      const id = typeof item === 'string' ? item : (item.node || item.id || String(item));
-      return id === nodeId;
-    });
-    if (isUnreachable) {
-      warnings.push({
-        icon: '🚫',
-        title: 'Недостижимый узел',
-        details: 'Этот узел недостижим из начальной точки. Добавьте переход к нему или удалите, если он не нужен.',
-        bgColor: 'rgba(142, 142, 147, 0.1)',
-        borderColor: '#8e8e93'
-      });
-    }
-  }
-  
-  // Check if node has missing reference
-  if (analysis.missing && Array.isArray(analysis.missing)) {
-    const isMissing = analysis.missing.some(item => {
-      const id = typeof item === 'string' ? item : (item.node || item.id || String(item));
-      return id === nodeId;
-    });
-    if (isMissing) {
-      warnings.push({
-        icon: '❌',
-        title: 'Ошибка перехода',
-        details: 'Ссылка на этот узел существует, но сам узел не найден в графе. Проверьте правильность jump/call.',
-        bgColor: 'rgba(255, 149, 0, 0.1)',
-        borderColor: '#ff9500'
-      });
-    }
-  }
-  
-  // Check if node is in infinite loop
-  if (analysis.infinite_loops && Array.isArray(analysis.infinite_loops)) {
-    const isInLoop = analysis.infinite_loops.some(loop => {
-      if (Array.isArray(loop)) {
-        return loop.some(item => {
-          const id = typeof item === 'string' ? item : (item.node || item.id || String(item));
-          return id === nodeId;
-        });
-      }
-      return false;
-    });
-    if (isInLoop) {
-      warnings.push({
-        icon: '🔄',
-        title: 'Бесконечный цикл',
-        details: 'Этот узел участвует в бесконечном цикле. Добавьте условие выхода из цикла (например, проверку переменной или menu).',
-        bgColor: 'rgba(255, 204, 0, 0.1)',
-        borderColor: '#ffcc00'
-      });
-    }
-  }
-  
-  // Check if node has state errors
-  if (analysis.state && analysis.state.impossible_conditions && Array.isArray(analysis.state.impossible_conditions)) {
-    const stateErrors = analysis.state.impossible_conditions.filter(err => {
-      return err.label === nodeId;
-    });
-    if (stateErrors.length > 0) {
-      stateErrors.forEach(err => {
-        warnings.push({
-          icon: '⚠️',
-          title: 'Ошибка состояния',
-          details: `Требуется ${err.var} ≥ ${err.required}, но максимум: ${err.range[1]}.<br>Путь: ${err.path.join(' → ')}.<br>Решение: снизьте порог или добавьте больше выборов, дающих очки опыта.`,
-          bgColor: 'rgba(175, 82, 222, 0.1)',
-          borderColor: '#af52de'
-        });
-      });
-    }
-  }
-
-  // Check if node is a dead end (terminal node)
-  if (analysis.terminal_nodes && Array.isArray(analysis.terminal_nodes)) {
-    const isTerminal = analysis.terminal_nodes.includes(nodeId);
-    if (isTerminal) {
-      warnings.push({
-        icon: '🏁',
-        title: 'Конечный узел',
-        details: 'Этот узел завершает ветвь сценария (нет исходящих переходов). Убедитесь, что это намеренно.',
-        bgColor: 'rgba(231, 76, 60, 0.1)',
-        borderColor: '#e74c3c'
-      });
-    }
-  }
-
-  return warnings;
-}
 </script>
 
 </body>

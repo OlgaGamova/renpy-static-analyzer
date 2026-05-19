@@ -144,13 +144,15 @@ def analyze_script(req: ScriptRequest):
 
         reach = ReachabilityAnalyzer()
         dead = DeadEndAnalyzer()
-        loop = InfiniteLoopAnalyzer()
+        loop_analyzer = InfiniteLoopAnalyzer()
         state = StateAnalyzer()
 
         # Get line numbers for unreachable nodes
+        unreachable_nodes = set()
         unreachable_with_lines = []
         unreachable_simple = []
         for node in reach.find_unreachable(graph):
+            unreachable_nodes.add(node)
             unreachable_simple.append(node)
             if node in script.labels:
                 label = script.labels[node]
@@ -162,9 +164,11 @@ def analyze_script(req: ScriptRequest):
                 unreachable_with_lines.append({"node": node, "line": None})
 
         # Get line numbers for terminal nodes
+        terminal_nodes_set = set()
         terminal_with_lines = []
         terminal_simple = []
         for node in dead.find_dead_ends(graph):
+            terminal_nodes_set.add(node)
             terminal_simple.append(node)
             if node in script.labels:
                 label = script.labels[node]
@@ -176,12 +180,14 @@ def analyze_script(req: ScriptRequest):
                 terminal_with_lines.append({"node": node, "line": None})
 
         # Get line numbers for infinite loops
+        infinite_loop_nodes = set()
         infinite_loops_with_lines = []
         infinite_loops_simple = []
-        for loop in loop.find_infinite_loops(graph):
+        for loop in loop_analyzer.find_infinite_loops(graph):
             loop_with_lines = []
             loop_simple = []
             for node in loop:
+                infinite_loop_nodes.add(node)
                 loop_simple.append(node)
                 if node in script.labels:
                     label = script.labels[node]
@@ -194,15 +200,118 @@ def analyze_script(req: ScriptRequest):
             infinite_loops_with_lines.append(loop_with_lines)
             infinite_loops_simple.append(loop_simple)
 
+        # Get state error nodes with line numbers
+        state_error_nodes = set()
+        state_errors_with_lines = []
+        state_analysis = state.analyze(script)
+        if state_analysis.get("impossible_conditions"):
+            for err in state_analysis["impossible_conditions"]:
+                label_name = err.get("label")
+                state_error_nodes.add(label_name)
+                if label_name in script.labels:
+                    label_obj = script.labels[label_name]
+                    line_num = getattr(label_obj, 'line', None)
+                    err_with_line = err.copy()
+                    err_with_line['line'] = line_num
+                    state_errors_with_lines.append(err_with_line)
+                else:
+                    err_with_line = err.copy()
+                    err_with_line['line'] = None
+                    state_errors_with_lines.append(err_with_line)
+
+        # Build nodes with pre-computed classes
+        missing_nodes = set(n for n in all_nodes if n not in graph)
+        nodes = []
+        for k in all_nodes:
+            # Build node classes and warnings
+            node_classes = []
+            node_warnings = []
+            
+            if k in unreachable_nodes:
+                node_classes.append("unreachable")
+                node_warnings.append({
+                    "type": "unreachable",
+                    "icon": "🚫",
+                    "title": "Недостижимый узел",
+                    "details": "Этот узел недостижим из начальной точки. Добавьте переход к нему или удалите, если он не нужен."
+                })
+            
+            if k in missing_nodes:
+                node_classes.append("missing")
+                node_warnings.append({
+                    "type": "missing",
+                    "icon": "❌",
+                    "title": "Ошибка перехода",
+                    "details": "Ссылка на этот узел существует, но сам узел не найден в графе. Проверьте правильность jump/call."
+                })
+            
+            if k in infinite_loop_nodes:
+                node_classes.append("infinite")
+                node_warnings.append({
+                    "type": "infinite",
+                    "icon": "🔄",
+                    "title": "Бесконечный цикл",
+                    "details": "Этот узел участвует в бесконечном цикле. Добавьте условие выхода из цикла (например, проверку переменной или menu)."
+                })
+            
+            if k in state_error_nodes:
+                node_classes.append("bad-state")
+                # Find specific state error details from pre-computed state_analysis
+                for err in state_analysis.get("impossible_conditions", []):
+                    if err.get("label") == k:
+                        node_warnings.append({
+                            "type": "bad-state",
+                            "icon": "⚠️",
+                            "title": "Ошибка состояния",
+                            "details": f"Требуется {err['var']} ≥ {err['required']}, но максимум: {err['range'][1]}. Путь: {' → '.join(err['path'])}. Решение: снизьте порог или добавьте больше выборов, дающих очки опыта."
+                        })
+            
+            if k in terminal_nodes_set:
+                node_classes.append("dead-end")
+                node_warnings.append({
+                    "type": "dead-end",
+                    "icon": "🏁",
+                    "title": "Конечный узел",
+                    "details": "Этот узел завершает ветвь сценария (нет исходящих переходов). Убедитесь, что это намеренно."
+                })
+            
+            if k in script.labels:
+                label = script.labels[k]
+                line_num = getattr(label, 'line', None)
+                nodes.append({
+                    "data": {
+                        "id": k,
+                        "label": k,
+                        "summary": format_label(label),
+                        "code": full_code(label),
+                        "line": line_num,
+                        "warnings": node_warnings
+                    },
+                    "classes": " ".join(node_classes)
+                })
+            else:
+                nodes.append({
+                    "data": {
+                        "id": k,
+                        "label": k,
+                        "summary": "Несуществующий label",
+                        "code": "",
+                        "line": None,
+                        "warnings": node_warnings
+                    },
+                    "classes": " ".join(node_classes)
+                })
+
         analysis = {
             "unreachable": unreachable_simple,
             "unreachable_with_lines": unreachable_with_lines,
             "terminal_nodes": terminal_simple,
             "terminal_nodes_with_lines": terminal_with_lines,
-            "missing": [n for n in all_nodes if n not in graph],
+            "missing": list(missing_nodes),
             "infinite_loops": infinite_loops_simple,
             "infinite_loops_with_lines": infinite_loops_with_lines,
-            "state": state.analyze(script)
+            "state": state_analysis,
+            "state_errors_with_lines": state_errors_with_lines
         }
 
         return {

@@ -69,10 +69,10 @@ class StateAnalyzer:
                             "range": (min_v, max_v),
                             "line": line_num
                         })
-                        # Continue to next node in body
-                        continue
-
-                    # Process the condition body (true branch)
+                        # DON'T continue - still need to process other statements in body
+                        # The condition might have a body with jumps that we need to explore
+                    
+                    # Process the condition body (true branch) - ALWAYS explore
                     if node.body:
                         # Process each statement in the body
                         for stmt in node.body:
