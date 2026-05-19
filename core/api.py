@@ -92,6 +92,29 @@ def build_recommendations(analysis):
                 f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (макс {err['range'][1]}) — снизьте порог или добавьте больше выборов, дающих очки опыта"
             )
 
+    # Always-true conditions (E07)
+    for at in analysis["state"].get("always_true_conditions", []):
+        line = at.get("line", None)
+        lbl = at.get("label")
+        var = at.get("var")
+        op = at.get("op")
+        val = at.get("value")
+        if line is not None:
+            recs.append(f"{lbl}: Условие '{var} {op} {val}' всегда истинно — ветка else никогда не выполнится (строка {line}). Проверьте логику условия — возможно, вы перепутали знак сравнения или переменная не может принять нужное значение.")
+        else:
+            recs.append(f"{lbl}: Условие '{var} {op} {val}' всегда истинно — ветка else никогда не выполнится. Проверьте логику условия — возможно, вы перепутали знак сравнения или переменная не может принять нужное значение.")
+
+    # Flag contradictions (E08)
+    for fc in analysis["state"].get("flag_contradictions", []):
+        line = fc.get("line", None)
+        lbl = fc.get("label")
+        var = fc.get("var")
+        vals = fc.get("values", [])
+        if line is not None:
+            recs.append(f"{lbl}: Флаг '{var}' имеет несовместимые значения на разных путях ({', '.join(map(str, vals))}) (строка {line}). Проверьте все места установки флага, особенно при переходе между сезонами или при загрузке сохранений. Убедитесь, что флаг инициализирован (default) и правильно изменяется во всех ветках.")
+        else:
+            recs.append(f"{lbl}: Флаг '{var}' имеет несовместимые значения на разных путях ({', '.join(map(str, vals))}). Проверьте все места установки флага, особенно при переходе между сезонами или при загрузке сохранений. Убедитесь, что флаг инициализирован (default) и правильно изменяется во всех ветках.")
+
     return recs
 
 
@@ -204,6 +227,63 @@ def analyze_script(req: ScriptRequest):
         state_error_nodes = set()
         state_errors_with_lines = []
         state_analysis = state.analyze(script)
+        # Build aggregated view of state errors to avoid repeating identical warnings for the same
+        # label+variable across multiple paths. This makes the frontend report more concise.
+        agg_impossible = {}
+        for err in state_analysis.get("impossible_conditions", []):
+            key = (err.get("label"), err.get("var"), err.get("type"))
+            item = agg_impossible.setdefault(key, {
+                "label": err.get("label"),
+                "var": err.get("var"),
+                "type": err.get("type", None),
+                "required": err.get("required"),
+                "ranges": set(),
+                "paths": set(),
+                "lines": set()
+            })
+            rng = err.get("range")
+            if isinstance(rng, (list, tuple)):
+                item["ranges"].add((rng[0], rng[1]))
+            if err.get("path"):
+                item["paths"].add(tuple(err.get("path")))
+            if err.get("line") is not None:
+                item["lines"].add(err.get("line"))
+
+        impossible_aggregated = []
+        for key, v in agg_impossible.items():
+            impossible_aggregated.append({
+                "label": v["label"],
+                "var": v["var"],
+                "type": v["type"],
+                "required": v.get("required"),
+                "ranges": list(v["ranges"]),
+                "paths": [list(p) for p in v["paths"]],
+                "line": (min(v["lines"]) if v["lines"] else None),
+                "occurrences": len(v["paths"]) or 1
+            })
+
+        # Aggregate flag contradictions (dedupe by label+var)
+        agg_fc = {}
+        for fc in state_analysis.get("flag_contradictions", []):
+            key = (fc.get("label"), fc.get("var"))
+            item = agg_fc.setdefault(key, {"label": fc.get("label"), "var": fc.get("var"), "values": set(), "paths": set(), "lines": set()})
+            for val in fc.get("values", []):
+                item["values"].add(val)
+            if fc.get("path"):
+                item["paths"].add(tuple(fc.get("path")))
+            if fc.get("line") is not None:
+                item["lines"].add(fc.get("line"))
+
+        flag_contradictions_aggregated = []
+        for k, v in agg_fc.items():
+            flag_contradictions_aggregated.append({
+                "label": v["label"],
+                "var": v["var"],
+                "values": list(v["values"]),
+                "paths": [list(p) for p in v["paths"]],
+                "line": (min(v["lines"]) if v["lines"] else None),
+                "occurrences": len(v["paths"]) or 1
+            })
         if state_analysis.get("impossible_conditions"):
             for err in state_analysis["impossible_conditions"]:
                 label_name = err.get("label")
@@ -256,15 +336,50 @@ def analyze_script(req: ScriptRequest):
             
             if k in state_error_nodes:
                 node_classes.append("bad-state")
-                # Find specific state error details from pre-computed state_analysis
-                for err in state_analysis.get("impossible_conditions", []):
-                    if err.get("label") == k:
+                # Use aggregated impossible conditions to avoid duplicates
+                aggs = impossible_aggregated
+                seen_vars = set()
+                for a in aggs:
+                    if a.get('label') != k:
+                        continue
+                    var = a.get('var')
+                    if var in seen_vars:
+                        continue
+                    seen_vars.add(var)
+                    typ = a.get('type')
+                    line = a.get('line')
+                    paths = a.get('paths', [])
+                    occ = a.get('occurrences', 1)
+                    path_info = ' → '.join(paths[0]) if paths and paths[0] else ''
+                    
+                    # Flag-specific
+                    if typ == 'flag':
                         node_warnings.append({
                             "type": "bad-state",
                             "icon": "⚠️",
-                            "title": "Ошибка состояния",
-                            "details": f"Требуется {err['var']} ≥ {err['required']}, но максимум: {err['range'][1]}. Путь: {' → '.join(err['path'])}. Решение: снизьте порог или добавьте больше выборов, дающих очки опыта."
+                            "title": "Ошибка состояния (флаг)",
+                            "details": f"Флаг {var} не может принять требуемое значение ({a.get('required')}). Путь: {path_info}. Проверьте инициализацию и присваивания ({var} = True/False)."
                         })
+                    else:
+                        # Numeric or unknown-range
+                        ranges = a.get('ranges', [])
+                        has_unknown = any(r is None or (isinstance(r, (list,tuple)) and (r[0] is None or r[1] is None)) for r in ranges)
+                        if has_unknown:
+                            node_warnings.append({
+                                "type": "bad-state",
+                                "icon": "⚠️",
+                                "title": "Ошибка состояния",
+                                "details": f"Требуется {var} ≥ {a.get('required')}, но состояние переменной неопределено. Проверьте инициализацию и места присваиваний переменной; возможно, это булевый флаг или значение устанавливается не во всех ветках."
+                            })
+                        else:
+                            # show numeric summary (use first range)
+                            rng0, rng1 = (ranges[0] if ranges else (None, None))
+                            node_warnings.append({
+                                "type": "bad-state",
+                                "icon": "⚠️",
+                                "title": "Ошибка состояния",
+                                "details": f"Требуется {var} ≥ {a.get('required')}, но максимум: {rng1}. Путь: {path_info}."
+                            })
             
             if k in terminal_nodes_set:
                 node_classes.append("dead-end")
@@ -311,7 +426,10 @@ def analyze_script(req: ScriptRequest):
             "infinite_loops": infinite_loops_simple,
             "infinite_loops_with_lines": infinite_loops_with_lines,
             "state": state_analysis,
-            "state_errors_with_lines": state_errors_with_lines
+            "state_errors_with_lines": state_errors_with_lines,
+            # Aggregated summaries to help frontend avoid duplicate entries
+            "state_impossible_aggregated": impossible_aggregated,
+            "state_flag_contradictions_aggregated": flag_contradictions_aggregated
         }
 
         return {

@@ -15,6 +15,8 @@ class StateAnalyzer:
     def analyze(self, script):
         results = {
             "impossible_conditions": [],
+            "always_true_conditions": [],
+            "flag_contradictions": [],
             "undefined_labels": []
         }
 
@@ -24,6 +26,9 @@ class StateAnalyzer:
 
         visited = set()
         undefined_labels_checked = set()
+        # For simple detection of flag contradictions: record observed flag values per label
+        seen_flags = {}
+        reported_flag_contradictions = set()
 
         while queue:
             label, state, path = queue.popleft()
@@ -44,6 +49,25 @@ class StateAnalyzer:
                 continue
             visited.add(key)
 
+            # collect flags seen at this label to detect simple contradictions across paths
+            for var, val in state.items():
+                if isinstance(val, tuple) and len(val) == 2 and val[0] == 'flag':
+                    lf = seen_flags.setdefault(label, {}).setdefault(var, set())
+                    lf.add(val[1])
+                    if True in lf and False in lf:
+                        rep_key = (label, var)
+                        if rep_key not in reported_flag_contradictions:
+                            reported_flag_contradictions.add(rep_key)
+                            # add to results
+                            line_num = getattr(script.labels.get(label, None), 'line', None)
+                            results["flag_contradictions"].append({
+                                "label": label,
+                                "path": path.copy(),
+                                "var": var,
+                                "values": list(lf),
+                                "line": line_num
+                            })
+
             body = script.labels[label].body
 
             for node in body:
@@ -54,21 +78,96 @@ class StateAnalyzer:
 
                 # --- CONDITION ---
                 elif isinstance(node, Condition):
-                    min_v, max_v = state.get(node.var, (0, 0))
-                    
-                    # Always check if condition is impossible
-                    if not self._check(min_v, max_v, node.op, node.value):
-                        # Get line number from condition node if available
-                        line_num = getattr(node, 'line', None)
-                        
-                        results["impossible_conditions"].append({
-                            "label": label,
-                            "path": path.copy(),
-                            "var": node.var,
-                            "required": node.value,
-                            "range": (min_v, max_v),
-                            "line": line_num
-                        })
+                    # Detect whether this is a flag-style condition (if flag / compare to 0/1)
+                    entry = state.get(node.var, None)
+                    is_flag = False
+                    flag_val = None
+                    min_v, max_v = (0, 0)
+
+                    if isinstance(entry, tuple) and len(entry) == 2 and entry[0] == 'flag':
+                        is_flag = True
+                        flag_val = entry[1]
+                    elif isinstance(entry, tuple) and len(entry) == 2:
+                        min_v, max_v = entry
+                    else:
+                        # default numeric interval
+                        min_v, max_v = (0, 0)
+
+                    # Heuristic: if condition has no operator (empty) or compares to 0/1, treat as flag
+                    if (not node.op) or (node.op in ("==", "!=") and node.value in (0, 1)):
+                        is_flag = True
+
+                    # --- FLAG condition handling ---
+                    if is_flag:
+                        # expected boolean for condition: if node.value in (0,1) use that, else if no op -> True
+                        if node.op in ("==", "!=") and node.value in (0, 1):
+                            expected = bool(node.value)
+                            if node.op == "!=":
+                                expected = not expected
+                        else:
+                            # plain `if var` means expect True
+                            expected = True
+
+                        # If we have known flag value
+                        if flag_val is not None:
+                            line_num = getattr(node, 'line', None)
+                            if flag_val is not expected:
+                                # impossible flag condition
+                                results["impossible_conditions"].append({
+                                    "label": label,
+                                    "path": path.copy(),
+                                    "var": node.var,
+                                    "required": expected,
+                                    "range": (None, None),
+                                    "line": line_num,
+                                    "type": "flag"
+                                })
+                            else:
+                                # condition always true for flag
+                                line_num = getattr(node, 'line', None)
+                                results["always_true_conditions"].append({
+                                    "label": label,
+                                    "path": path.copy(),
+                                    "var": node.var,
+                                    "op": node.op,
+                                    "value": node.value,
+                                    "range": (flag_val, flag_val),
+                                    "line": line_num
+                                })
+                        else:
+                            # unknown flag (None) - nothing to assert, continue
+                            pass
+
+                    else:
+                        # Numeric condition handling
+                        # Always check if condition is impossible
+                        if not self._check(min_v, max_v, node.op, node.value):
+                            # Get line number from condition node if available
+                            line_num = getattr(node, 'line', None)
+                            
+                            results["impossible_conditions"].append({
+                                "label": label,
+                                "path": path.copy(),
+                                "var": node.var,
+                                "required": node.value,
+                                "range": (min_v, max_v),
+                                "line": line_num
+                            })
+
+                        # Additionally detect always-true: inverse impossible
+                        inv_op = self._invert_op(node.op)
+                        if inv_op and not self._check(min_v, max_v, inv_op, node.value):
+                            # inverse impossible => condition always true
+                            line_num = getattr(node, 'line', None)
+                            results["always_true_conditions"].append({
+                                "label": label,
+                                "path": path.copy(),
+                                "var": node.var,
+                                "op": node.op,
+                                "value": node.value,
+                                "range": (min_v, max_v),
+                                "line": line_num
+                            })
                         # DON'T continue - still need to process other statements in body
                         # The condition might have a body with jumps that we need to explore
                     
@@ -112,7 +211,23 @@ class StateAnalyzer:
 
     def _apply(self, state, node: Assignment):
         state = state.copy()
-        min_v, max_v = state.get(node.var, (0, 0))
+        # If assignment looks like a boolean assignment (0/1), treat as flag
+        if node.op == "=" and node.value in (0, 1):
+            state[node.var] = ('flag', bool(node.value))
+            return state
+
+        # Numeric handling
+        existing = state.get(node.var, (0, 0))
+        # If previously recorded as a flag, promote to numeric for arithmetic ops
+        if isinstance(existing, tuple) and len(existing) == 2 and existing[0] == 'flag':
+            fv = existing[1]
+            if fv is None:
+                min_v, max_v = (0, 0)
+            else:
+                min_v = 1 if fv else 0
+                max_v = min_v
+        else:
+            min_v, max_v = existing
 
         if node.op == "+=":
             min_v += node.value
@@ -140,6 +255,29 @@ class StateAnalyzer:
             return min_v <= value <= max_v
         return True
 
+    def _invert_op(self, op):
+        if op == ">=":
+            return "<"
+        if op == ">":
+            return "<="
+        if op == "<=":
+            return ">"
+        if op == "<":
+            return ">="
+        if op == "==":
+            return "!="
+        if op == "!=":
+            return "=="
+        return None
+
     def _key(self, state):
         # используется для visited, чтобы избежать бесконечных циклов
-        return tuple(sorted((k, v[0], v[1]) for k, v in state.items()))
+        items = []
+        for k, v in state.items():
+            if isinstance(v, tuple) and len(v) == 2 and v[0] == 'flag':
+                items.append((k, 'flag', v[1]))
+            elif isinstance(v, tuple) and len(v) == 2:
+                items.append((k, 'num', v[0], v[1]))
+            else:
+                items.append((k, str(v)))
+        return tuple(sorted(items))

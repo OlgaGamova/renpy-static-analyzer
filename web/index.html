@@ -729,17 +729,57 @@ async function analyze() {
       reportHtml += '</div>';
     }
 
-    if (analysis.state?.impossible_conditions?.length) {
+    // Use aggregated state errors from backend to avoid duplicates
+    if (analysis.state_impossible_aggregated?.length) {
       hasErrors = true;
       reportHtml += '<div class="report-section">';
       reportHtml += '<div class="report-section-title">Ошибки состояний</div>';
       reportHtml += '<div class="report-section-content">';
-      analysis.state.impossible_conditions.forEach(p => {
+      analysis.state_impossible_aggregated.forEach(p => {
+        const rangeInfo = p.ranges && p.ranges.length > 0 ? `[${p.ranges[0][0]}, ${p.ranges[0][1]}]` : '[null, null]';
+        const pathInfo = p.paths && p.paths.length > 0 ? p.paths[0].join(' → ') : '';
+        const typeInfo = p.type === 'flag' ? ' (флаг)' : '';
         reportHtml += `<div style="margin-bottom: 12px; padding-left: 12px; border-left: 3px solid #af52de;">
-          <strong>${p.label}</strong><br>
-          Требуется: ${p.var} ${p.op} ${p.required}<br>
+          <strong>${p.label}${typeInfo}</strong><br>
+          Требуется: ${p.var} ${p.type === 'flag' ? '' : '≥'} ${p.required}<br>
+          Диапазон: ${rangeInfo}<br>
+          Путь: ${pathInfo}${p.occurrences > 1 ? ` <em>(+${p.occurrences - 1} других путей)</em>` : ''}
+        </div>`;
+      });
+      reportHtml += '</div></div>';
+    }
+
+    if (analysis.state?.always_true_conditions?.length) {
+      hasErrors = true;
+      reportHtml += '<div class="report-section">';
+      reportHtml += '<div class="report-section-title">⚠️ Всегда истинные условия</div>';
+      reportHtml += '<div class="report-section-content">';
+      analysis.state.always_true_conditions.forEach(p => {
+        const lineInfo = p.line ? ` (строка ${p.line})` : '';
+        reportHtml += `<div style="margin-bottom: 12px; padding-left: 12px; border-left: 3px solid #ff9800;">
+          <strong>${p.label}${lineInfo}</strong><br>
+          Условие: ${p.var} ${p.op} ${p.value} всегда истинно<br>
           Диапазон: [${p.range[0]}, ${p.range[1]}]<br>
           Путь: ${p.path.join(' → ')}
+        </div>`;
+      });
+      reportHtml += '</div></div>';
+    }
+
+    if (analysis.state_flag_contradictions_aggregated?.length) {
+      hasErrors = true;
+      reportHtml += '<div class="report-section">';
+      reportHtml += '<div class="report-section-title">🚩 Противоречия в состоянии флагов</div>';
+      reportHtml += '<div class="report-section-content">';
+      analysis.state_flag_contradictions_aggregated.forEach(fc => {
+        const lineInfo = fc.line ? ` (строка ${fc.line})` : '';
+        const valuesInfo = fc.values.join(', ');
+        const pathInfo = fc.paths && fc.paths.length > 0 ? fc.paths[0].join(' → ') : '';
+        reportHtml += `<div style="margin-bottom: 12px; padding-left: 12px; border-left: 3px solid #f44336;">
+          <strong>${fc.label}${lineInfo}</strong><br>
+          Флаг: ${fc.var}<br>
+          Значения на разных путях: ${valuesInfo}<br>
+          Путь: ${pathInfo}${fc.occurrences > 1 ? ` <em>(+${fc.occurrences - 1} других путей)</em>` : ''}
         </div>`;
       });
       reportHtml += '</div></div>';
