@@ -15,11 +15,13 @@ class InfiniteLoopAnalyzer:
                     continue
 
             # проверяем: есть ли выход наружу
+            # Оптимизация: преобразуем компонент в set для быстрого поиска (O(1) вместо O(V))
+            component_set = set(component)
             has_exit = False
 
             for node in component:
-                for neighbor in graph.get(node, []):
-                    if neighbor not in component:
+                for neighbor in graph.get(node, set()):
+                    if neighbor not in component_set:
                         has_exit = True
                         break
                 if has_exit:
