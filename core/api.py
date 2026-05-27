@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from typing import Tuple, List, Dict
 
 from core.parser.parser import RenPyParser
 from core.parser.transformer import RenPyTransformer
@@ -11,6 +12,7 @@ from core.analysis.reachability import ReachabilityAnalyzer
 from core.analysis.dead_ends import DeadEndAnalyzer
 from core.analysis.infinite_loops import InfiniteLoopAnalyzer
 from core.analysis.state import StateAnalyzer
+from core.ir.model import UnknownStatement
 
 app = FastAPI()
 
@@ -26,6 +28,84 @@ app.mount("/static", StaticFiles(directory="web"), name="static")
 
 class ScriptRequest(BaseModel):
     code: str
+
+
+def preprocess_code(code: str) -> Tuple[str, List[Dict]]:
+    """
+    Preprocess Ren'Py code to replace unknown statements with __UNKNOWN__ markers.
+    
+    Returns:
+        Tuple of (processed_code, replaced_lines_info)
+        where replaced_lines_info is a list of dicts: {line: int, text: str}
+    """
+    lines = code.split('\n')
+    processed_lines = []
+    replaced_lines_info = []
+    
+    i = 0
+    while i < len(lines):
+        line_num = i + 1
+        line = lines[i]
+        stripped = line.strip()
+        
+        # Handle comments: remove indented comments to avoid indenter issues
+        if stripped.startswith('#'):
+            # Check if this comment was indented
+            if line != line.lstrip() and len(line) - len(line.lstrip()) > 0:
+                # Indented comment - replace with empty line
+                processed_lines.append('')
+            else:
+                # Non-indented comment is safe
+                processed_lines.append(stripped)
+            i += 1
+        elif stripped == '':
+            # Empty lines preserved as-is
+            processed_lines.append(line)
+            i += 1
+        # Supported constructs - check for $ FIRST
+        elif (stripped.startswith('$') or
+              stripped.startswith('label ') or 
+              stripped.startswith('jump ') or
+              stripped.startswith('menu:') or
+              stripped.startswith('menu ') or
+              stripped.startswith('if ') or
+              stripped.startswith('"') or
+              stripped.startswith("'")):
+            processed_lines.append(line)
+            i += 1
+        else:
+            # Unknown construct - replace it AND all more-indented lines below it
+            indent = len(line) - len(line.lstrip())
+            replaced_lines_info.append({
+                'line': line_num,
+                'text': stripped
+            })
+            processed_lines.append(' ' * indent + '__UNKNOWN__')
+            i += 1
+            
+            # Skip all subsequent lines that are more indented (child lines)
+            while i < len(lines):
+                next_line = lines[i]
+                next_stripped = next_line.strip()
+                
+                # Empty lines or comments don't count for indentation hierarchy
+                if next_stripped == '' or next_stripped.startswith('#'):
+                    # Keep them but they don't affect the skip logic
+                    processed_lines.append(next_stripped if next_stripped.startswith('#') and next_line == next_line.lstrip() else '')
+                    i += 1
+                    continue
+                
+                next_indent = len(next_line) - len(next_line.lstrip())
+                if next_indent > indent:
+                    # This is a child line - replace with empty to preserve line count
+                    processed_lines.append('')
+                    i += 1
+                else:
+                    # Not a child line - stop skipping
+                    break
+    
+    processed_code = '\n'.join(processed_lines)
+    return processed_code, replaced_lines_info
 
 
 # --- форматирование узла ---
@@ -121,11 +201,44 @@ def build_recommendations(analysis):
 @app.post("/analyze")
 def analyze_script(req: ScriptRequest):
     try:
+        # Step 1: Preprocess code to handle unknown statements
+        processed_code, replaced_lines_info = preprocess_code(req.code)
+        
+        # Build a lookup dict for fast access: line_number -> original_text
+        original_texts = {info['line']: info['text'] for info in replaced_lines_info}
+        
+        # Step 2: Parse the processed code
         parser = RenPyParser()
-        tree = parser.parse_text(req.code)
+        tree = parser.parse_text(processed_code)
 
         transformer = RenPyTransformer()
         script = transformer.transform(tree)
+
+        # Step 3: Collect warnings from UnknownStatement
+        warnings = []
+        critical_keywords = ['call', 'return', 'while', 'repeat', 'python:']
+        
+        for label_name, label_obj in script.labels.items():
+            for stmt in label_obj.body:
+                if isinstance(stmt, UnknownStatement):
+                    # Get the original line number from the statement
+                    line_num = stmt.line
+                    
+                    # Look up the original text
+                    original_text = original_texts.get(line_num, stmt.source)
+                    
+                    # Check for critical keywords in the original text
+                    source_lower = original_text.lower()
+                    is_critical = any(keyword in source_lower for keyword in critical_keywords)
+                    
+                    if is_critical:
+                        warnings.append({
+                            "label": label_name,
+                            "line": line_num,
+                            "column": stmt.column,
+                            "source": original_text[:200],
+                            "message": f"Пропущена конструкция, влияющая на логику переходов: {original_text[:100]}"
+                        })
 
         builder = GraphBuilder()
         graph = builder.build(script)
@@ -429,7 +542,8 @@ def analyze_script(req: ScriptRequest):
             "state_errors_with_lines": state_errors_with_lines,
             # Aggregated summaries to help frontend avoid duplicate entries
             "state_impossible_aggregated": impossible_aggregated,
-            "state_flag_contradictions_aggregated": flag_contradictions_aggregated
+            "state_flag_contradictions_aggregated": flag_contradictions_aggregated,
+            "warnings": warnings
         }
 
         return {

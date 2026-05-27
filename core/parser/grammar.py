@@ -7,8 +7,9 @@ start: (_NEWLINE | statement)*
           | say
           | assignment
           | condition
+          | unknown_statement
 
-label: "label" NAME ":" _NEWLINE INDENT statement+ DEDENT
+label: "label" ("."?) NAME ":" _NEWLINE INDENT statement+ DEDENT
 
 jump: "jump" NAME _NEWLINE?
 
@@ -18,13 +19,18 @@ menu_option: STRING ":" _NEWLINE INDENT statement+ DEDENT
 
 say: STRING _NEWLINE?
 
-assignment: "$" NAME OP_ASSIGN (NUMBER | NAME) _NEWLINE?
+# Support any $ assignment: $var=value, $ renpy.notify(...), $var=True, etc.
+# Priority .2 makes it lower than NAME, STRING, etc.
+assignment: DOLLAR_ASSIGN _NEWLINE?
 
-OP_ASSIGN: "+=" | "="
+DOLLAR_ASSIGN.2: "$" /[^\n]*/
 
 condition: "if" NAME [OP NUMBER] ":" _NEWLINE INDENT statement+ DEDENT
 
 OP: ">=" | "<=" | ">" | "<" | "=="
+
+UNKNOWN_TOKEN: "__UNKNOWN__"
+unknown_statement: UNKNOWN_TOKEN _NEWLINE?
 
 COMMENT: /#[^\n]*/
 

@@ -1,5 +1,6 @@
 from lark import Lark
 from lark.indenter import Indenter
+from lark.exceptions import UnexpectedToken
 from core.parser.grammar import RENPY_GRAMMAR
 
 

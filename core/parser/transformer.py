@@ -1,5 +1,5 @@
 from lark import Transformer
-from core.ir.model import Script, Label, Jump, Say, Menu, MenuOption, Assignment, Condition
+from core.ir.model import Script, Label, Jump, Say, Menu, MenuOption, Assignment, Condition, UnknownStatement
 from lark import Transformer, Token
 
 class RenPyTransformer(Transformer):
@@ -12,12 +12,20 @@ class RenPyTransformer(Transformer):
         return script
 
     def label(self, items):
-        name = str(items[0])
-        line = getattr(items[0], 'line', None)
-        column = getattr(items[0], 'column', None)
+        # Handle dot-labels (local labels)
+        if items[0] == '.':
+            name = "." + str(items[1])
+            line = getattr(items[1], 'line', None)
+            column = getattr(items[1], 'column', None)
+            body_start = 2
+        else:
+            name = str(items[0])
+            line = getattr(items[0], 'line', None)
+            column = getattr(items[0], 'column', None)
+            body_start = 1
 
         body = [
-            item for item in items[1:]
+            item for item in items[body_start:]
             if not isinstance(item, Token)
         ]
 
@@ -60,18 +68,49 @@ class RenPyTransformer(Transformer):
         return items[0]
 
     def assignment(self, items):
-        var = str(items[0])
-        op = str(items[1])
-        val = items[2]
-        line = getattr(items[0], 'line', None)
-        column = getattr(items[0], 'column', None)
-        if str(val) == 'True':
-            value = 1
-        elif str(val) == 'False':
-            value = 0
+        # New format: DOLLAR_ASSIGN _NEWLINE?
+        # DOLLAR_ASSIGN includes the "$", so we need to strip it
+        # items[0] is the entire expression including $
+        line = None
+        column = None
+        
+        if items and len(items) > 0:
+            token = items[0]
+            line = getattr(token, 'line', None)
+            column = getattr(token, 'column', None)
+            source = str(token).strip()
+            
+            # Strip leading $ if present
+            if source.startswith('$'):
+                source = source[1:].strip()
         else:
-            value = int(val)
-        return Assignment(var=var, op=op, value=value, line=line, column=column)
+            source = ""
+        
+        # Try to parse simple assignments like "var = value" or "var=True"
+        # For complex expressions like "renpy.notify(...)", we just store the source
+        import re
+        match = re.match(r'(\w+)\s*([+]?=)\s*(.+)', source)
+        if match:
+            var = match.group(1)
+            op = match.group(2)
+            val_str = match.group(3).strip()
+            
+            # Convert True/False to 1/0
+            if val_str == 'True':
+                value = 1
+            elif val_str == 'False':
+                value = 0
+            else:
+                try:
+                    value = int(val_str)
+                except ValueError:
+                    # For complex values, just use 0
+                    value = 0
+            
+            return Assignment(var=var, op=op, value=value, line=line, column=column)
+        else:
+            # Complex expression - create a dummy Assignment
+            return Assignment(var=source, op="=", value=0, line=line, column=column)
 
     def condition(self, items):
         var = str(items[0])
@@ -92,3 +131,23 @@ class RenPyTransformer(Transformer):
         ]
 
         return Condition(var=var, op=op, value=value, body=body, line=line, column=column)
+
+    def unknown_statement(self, items):
+        # items[0] is the UNKNOWN_TOKEN
+        line = None
+        column = None
+        
+        if items and len(items) > 0:
+            token = items[0]
+            line = getattr(token, 'line', None)
+            column = getattr(token, 'column', None)
+        
+        # The source will be looked up from original_texts in API
+        # but we store a placeholder here
+        return UnknownStatement(source="__UNKNOWN__", line=line, column=column)
+    
+    def UNKNOWN_TOKEN(self, token):
+        return token
+
+    def UNKNOWN_LINE(self, token):
+        return token

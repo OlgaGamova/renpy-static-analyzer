@@ -1,0 +1,182 @@
+[
+  {
+    "script_name": "perf_large_1000.rpy",
+    "file_size": 82140,
+    "line_count": 5074,
+    "label_count": 831,
+    "node_count": 831,
+    "edge_count": 999,
+    "timings": {
+      "parsing": 0.1894100000004073,
+      "transformation": 0.022443899999871064,
+      "graph_building": 0.0009231999997609819,
+      "reachability": 0.0004345000002103916,
+      "dead_ends": 5.620000001727021e-05,
+      "infinite_loops": 0.0012931000001117354,
+      "state_analysis": 0.0022245999998631305,
+      "total": 0.21678550000024188
+    },
+    "errors": [],
+    "timestamp": 1779200930.380746
+  },
+  {
+    "script_name": "perf_large_2000.rpy",
+    "file_size": 164264,
+    "line_count": 10041,
+    "label_count": 1618,
+    "node_count": 1618,
+    "edge_count": 1999,
+    "timings": {
+      "parsing": 0.323813699999846,
+      "transformation": 0.04306680000036067,
+      "graph_building": 0.0018288000001120963,
+      "reachability": 0.0008953999999903317,
+      "dead_ends": 0.00010280000014972757,
+      "infinite_loops": 0.0024884999997993873,
+      "state_analysis": 0.0014422999997805164,
+      "total": 0.3736383000000387
+    },
+    "errors": [],
+    "timestamp": 1779200930.761716
+  },
+  {
+    "script_name": "perf_linear_500.rpy",
+    "file_size": 26140,
+    "line_count": 1998,
+    "label_count": 500,
+    "node_count": 500,
+    "edge_count": 498,
+    "timings": {
+      "parsing": 0.10905430000002525,
+      "transformation": 0.00937290000001667,
+      "graph_building": 0.0004748999999719672,
+      "reachability": 0.0001975000000129512,
+      "dead_ends": 6.450000000768341e-05,
+      "infinite_loops": 0.0023249000000760134,
+      "state_analysis": 0.0007440999997925246,
+      "total": 0.12223309999990306
+    },
+    "errors": [],
+    "timestamp": 1779200930.893913
+  },
+  {
+    "script_name": "perf_medium_250.rpy",
+    "file_size": 20215,
+    "line_count": 1269,
+    "label_count": 214,
+    "node_count": 214,
+    "edge_count": 249,
+    "timings": {
+      "parsing": 0.058822999999847525,
+      "transformation": 0.00522980000005191,
+      "graph_building": 0.00021650000007866765,
+      "reachability": 0.00010910000037256395,
+      "dead_ends": 4.290000015316764e-05,
+      "infinite_loops": 0.0008769000000938831,
+      "state_analysis": 0.0006161999999676482,
+      "total": 0.06591440000056537
+    },
+    "errors": [],
+    "timestamp": 1779200930.964879
+  },
+  {
+    "script_name": "perf_medium_500.rpy",
+    "file_size": 40848,
+    "line_count": 2536,
+    "label_count": 412,
+    "node_count": 412,
+    "edge_count": 499,
+    "timings": {
+      "parsing": 0.09903250000024855,
+      "transformation": 0.010499600000002829,
+      "graph_building": 0.001307600000018283,
+      "reachability": 0.0006027999997968436,
+      "dead_ends": 6.829999983892776e-05,
+      "infinite_loops": 0.0015592999998261803,
+      "state_analysis": 0.0010272999998051091,
+      "total": 0.11409739999953672
+    },
+    "errors": [],
+    "timestamp": 1779200931.0861468
+  },
+  {
+    "script_name": "perf_small_100.rpy",
+    "file_size": 7916,
+    "line_count": 512,
+    "label_count": 90,
+    "node_count": 90,
+    "edge_count": 99,
+    "timings": {
+      "parsing": 0.04900630000020101,
+      "transformation": 0.002528200000142533,
+      "graph_building": 0.00011459999996077386,
+      "reachability": 6.729999995513936e-05,
+      "dead_ends": 1.1500000255182385e-05,
+      "infinite_loops": 0.00016649999997753184,
+      "state_analysis": 0.0002761000000646163,
+      "total": 0.052170500000556785
+    },
+    "errors": [],
+    "timestamp": 1779200931.145617
+  },
+  {
+    "script_name": "perf_small_50.rpy",
+    "file_size": 4063,
+    "line_count": 261,
+    "label_count": 43,
+    "node_count": 43,
+    "edge_count": 49,
+    "timings": {
+      "parsing": 0.03426290000015797,
+      "transformation": 0.0029171999999562104,
+      "graph_building": 0.00014349999992191442,
+      "reachability": 7.340000001931912e-05,
+      "dead_ends": 1.4399999599845614e-05,
+      "infinite_loops": 0.0001809000000321248,
+      "state_analysis": 0.0004617999998117739,
+      "total": 0.03805409999949916
+    },
+    "errors": [],
+    "timestamp": 1779200931.1894963
+  },
+  {
+    "script_name": "perf_wide_tree.rpy",
+    "file_size": 669251,
+    "line_count": 39059,
+    "label_count": 7812,
+    "node_count": 7812,
+    "edge_count": 7030,
+    "timings": {
+      "parsing": 1.0449988999998823,
+      "transformation": 0.17208579999987705,
+      "graph_building": 0.009329100000286417,
+      "reachability": 0.0007860000000619038,
+      "dead_ends": 0.0005347999999685271,
+      "infinite_loops": 0.012930000000324071,
+      "state_analysis": 0.004573599999730504,
+      "total": 1.2452382000001307
+    },
+    "errors": [],
+    "timestamp": 1779200932.451014
+  },
+  {
+    "script_name": "perf_xlarge_5000.rpy",
+    "file_size": 415136,
+    "line_count": 25016,
+    "label_count": 4006,
+    "node_count": 4006,
+    "edge_count": 4999,
+    "timings": {
+      "parsing": 0.7757391999998617,
+      "transformation": 0.10807999999997264,
+      "graph_building": 0.004927200000111043,
+      "reachability": 0.002416600000287872,
+      "dead_ends": 0.00022630000012213713,
+      "infinite_loops": 0.0067125999999007036,
+      "state_analysis": 0.0038316000000122585,
+      "total": 0.9019335000002684
+    },
+    "errors": [],
+    "timestamp": 1779200933.3808103
+  }
+]

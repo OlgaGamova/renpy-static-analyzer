@@ -86,3 +86,11 @@ class Condition(Statement):
     body: List[Statement] = field(default_factory=list)
     line: Optional[int] = None
     column: Optional[int] = None
+
+
+@dataclass
+class UnknownStatement(Statement):
+    source: str
+    line: Optional[int] = None
+    column: Optional[int] = None
+    error_message: str = ""
