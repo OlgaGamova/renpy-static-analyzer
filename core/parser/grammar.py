@@ -36,7 +36,7 @@ condition: "if" NAME [OP NUMBER] ":" _NEWLINE INDENT statement+ DEDENT
 OP: ">=" | "<=" | ">" | "<" | "=="
 
 UNKNOWN_TOKEN: "__UNKNOWN__"
-unknown_statement: UNKNOWN_TOKEN _NEWLINE?
+unknown_statement: UNKNOWN_TOKEN _NEWLINE? (INDENT statement+ DEDENT)?
 
 COMMENT: /#[^\n]*/
 

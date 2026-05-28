@@ -9,7 +9,32 @@ class RenPyTransformer(Transformer):
         for item in items:
             if isinstance(item, Label):
                 script.add_label(item)
+                # Also extract nested labels from this label's body
+                self._extract_nested_labels(item, script)
         return script
+    
+    def _extract_nested_labels(self, label, script):
+        """Recursively extract nested labels from a label's body and add them to the script."""
+        nested_labels = []
+        new_body = []
+        for stmt in label.body:
+            if isinstance(stmt, Label):
+                nested_labels.append(stmt)
+                script.add_label(stmt)
+                self._extract_nested_labels(stmt, script)
+                new_body.append(stmt)  # Keep label reference in body for flow analysis
+            elif isinstance(stmt, list):
+                # Handle lists of statements (e.g., from unknown_statement blocks)
+                for sub_stmt in stmt:
+                    if isinstance(sub_stmt, Label):
+                        nested_labels.append(sub_stmt)
+                        script.add_label(sub_stmt)
+                        self._extract_nested_labels(sub_stmt, script)
+                # Keep the list in body (contains UnknownStatement + any Labels)
+                new_body.append(stmt)
+            else:
+                new_body.append(stmt)
+        label.body = new_body
 
     def label(self, items):
         # Handle dot-labels (local labels)
@@ -152,17 +177,31 @@ class RenPyTransformer(Transformer):
         return Condition(var=var, op=op, value=value, body=body, line=line, column=column)
 
     def unknown_statement(self, items):
-        # items[0] is the UNKNOWN_TOKEN
+        # items: [UNKNOWN_TOKEN, ...optional_block_statements...]
+        # With grammar: UNKNOWN_TOKEN _NEWLINE? (INDENT statement+ DEDENT)?
+        # The block statements are included in items if present
         line = None
         column = None
+        body = []
         
-        if items and len(items) > 0:
-            token = items[0]
-            line = getattr(token, 'line', None)
-            column = getattr(token, 'column', None)
+        for item in items:
+            if isinstance(item, Token):
+                if item.type == 'UNKNOWN_TOKEN':
+                    line = getattr(item, 'line', None)
+                    column = getattr(item, 'column', None)
+            elif item is not None:
+                # This is a statement from the optional block
+                body.append(item)
         
-        # The source will be looked up from original_texts in API
-        # but we store a placeholder here
+        # If there are nested labels in the body, we need to return them
+        # so that the parent label can extract them via _extract_nested_labels
+        if body:
+            # Return a list: [UnknownStatement, Label1, Label2, ...]
+            # The _extract_nested_labels method will find and extract the Labels
+            result = [UnknownStatement(source="__UNKNOWN__", line=line, column=column)]
+            result.extend(body)
+            return result
+        
         return UnknownStatement(source="__UNKNOWN__", line=line, column=column)
     
     def UNKNOWN_TOKEN(self, token):

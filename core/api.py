@@ -33,6 +33,8 @@ class ScriptRequest(BaseModel):
 def preprocess_code(code: str) -> Tuple[str, List[Dict]]:
     """
     Preprocess Ren'Py code to replace unknown statements with __UNKNOWN__ markers.
+    Each line is processed independently - no child skipping.
+    The grammar supports __UNKNOWN__ with optional blocks (INDENT/DEDENT).
     
     Returns:
         Tuple of (processed_code, replaced_lines_info)
@@ -42,10 +44,8 @@ def preprocess_code(code: str) -> Tuple[str, List[Dict]]:
     processed_lines = []
     replaced_lines_info = []
     
-    i = 0
-    while i < len(lines):
+    for i, line in enumerate(lines):
         line_num = i + 1
-        line = lines[i]
         stripped = line.strip()
         
         # Handle comments: remove indented comments to avoid indenter issues
@@ -57,54 +57,33 @@ def preprocess_code(code: str) -> Tuple[str, List[Dict]]:
             else:
                 # Non-indented comment is safe
                 processed_lines.append(stripped)
-            i += 1
         elif stripped == '':
             # Empty lines preserved as-is
             processed_lines.append(line)
-            i += 1
-        # Supported constructs - check for $ FIRST
+        # Supported constructs
         elif (stripped.startswith('$') or
               stripped.startswith('label ') or 
+              stripped.startswith('label.') or
               stripped.startswith('jump ') or
               (stripped.startswith('call ') and not stripped.startswith('call screen')) or
               stripped.startswith('return') or
               stripped.startswith('menu:') or
               stripped.startswith('menu ') or
               stripped.startswith('if ') or
+              stripped.startswith('elif ') or
+              stripped.startswith('else:') or
               stripped.startswith('"') or
               stripped.startswith("'")):
             processed_lines.append(line)
-            i += 1
         else:
-            # Unknown construct - replace it AND all more-indented lines below it
+            # Unknown construct - replace with __UNKNOWN__ marker
+            # This preserves indentation and is recognized by the parser
             indent = len(line) - len(line.lstrip())
             replaced_lines_info.append({
                 'line': line_num,
                 'text': stripped
             })
             processed_lines.append(' ' * indent + '__UNKNOWN__')
-            i += 1
-            
-            # Skip all subsequent lines that are more indented (child lines)
-            while i < len(lines):
-                next_line = lines[i]
-                next_stripped = next_line.strip()
-                
-                # Empty lines or comments don't count for indentation hierarchy
-                if next_stripped == '' or next_stripped.startswith('#'):
-                    # Keep them but they don't affect the skip logic
-                    processed_lines.append(next_stripped if next_stripped.startswith('#') and next_line == next_line.lstrip() else '')
-                    i += 1
-                    continue
-                
-                next_indent = len(next_line) - len(next_line.lstrip())
-                if next_indent > indent:
-                    # This is a child line - replace with empty to preserve line count
-                    processed_lines.append('')
-                    i += 1
-                else:
-                    # Not a child line - stop skipping
-                    break
     
     processed_code = '\n'.join(processed_lines)
     return processed_code, replaced_lines_info
