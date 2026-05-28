@@ -38,6 +38,19 @@ class Jump(Statement):
     column: Optional[int] = None
 
 
+@dataclass
+class Call(Statement):
+    target: str
+    line: Optional[int] = None
+    column: Optional[int] = None
+
+
+@dataclass
+class Return(Statement):
+    line: Optional[int] = None
+    column: Optional[int] = None
+
+
 # -------------------------
 # Диалоги
 # -------------------------

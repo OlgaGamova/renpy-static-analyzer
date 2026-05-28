@@ -1,7 +1,8 @@
-from core.ir.model import Assignment, Condition, Menu
+from core.ir.model import Assignment, Condition, Menu, Call, Return
 from collections import deque
 
 INF = float("inf")
+MAX_CALL_STACK_DEPTH = 10  # Maximum call stack depth to prevent infinite loops
 
 class StateAnalyzer:
     """
@@ -17,12 +18,15 @@ class StateAnalyzer:
             "impossible_conditions": [],
             "always_true_conditions": [],
             "flag_contradictions": [],
-            "undefined_labels": []
+            "undefined_labels": [],
+            "stack_overflow_warnings": []  # New: warnings about deep call stacks
         }
 
-        # очередь для обхода: каждый элемент = (label, state, path)
+        # очередь для обхода: каждый элемент = (label, state, path, call_stack, operator_index)
+        # call_stack is a list of (return_label, next_index) tuples
+        # operator_index is the current position in the label's body
         queue = deque()
-        queue.append(("start", {}, ["start"]))
+        queue.append(("start", {}, ["start"], [], 0))
 
         visited = set()
         undefined_labels_checked = set()
@@ -31,7 +35,7 @@ class StateAnalyzer:
         reported_flag_contradictions = set()
 
         while queue:
-            label, state, path = queue.popleft()
+            label, state, path, call_stack, op_index = queue.popleft()
             
             # Skip if label doesn't exist in the script
             if label not in script.labels:
@@ -44,7 +48,7 @@ class StateAnalyzer:
                     })
                 continue
             
-            key = (label, self._key(state))
+            key = (label, self._key(state), tuple(call_stack))
             if key in visited:
                 continue
             visited.add(key)
@@ -69,12 +73,48 @@ class StateAnalyzer:
                             })
 
             body = script.labels[label].body
-
-            for node in body:
+            
+            # Process statements starting from op_index
+            for idx in range(op_index, len(body)):
+                node = body[idx]
 
                 # --- ASSIGNMENT ---
                 if isinstance(node, Assignment):
                     state = self._apply(state, node)
+
+                # --- CALL ---
+                elif isinstance(node, Call):
+                    # Save return address: (current_label, next_index)
+                    next_index = idx + 1
+                    new_stack = call_stack + [(label, next_index)]
+                    
+                    # Check stack depth limit
+                    if len(new_stack) > MAX_CALL_STACK_DEPTH:
+                        line_num = getattr(node, 'line', None)
+                        results["stack_overflow_warnings"].append({
+                            "label": label,
+                            "path": path.copy(),
+                            "target": node.target,
+                            "stack_depth": len(new_stack),
+                            "max_depth": MAX_CALL_STACK_DEPTH,
+                            "line": line_num
+                        })
+                        # Don't add to queue to prevent infinite loops
+                        continue
+                    
+                    # Jump to the called label
+                    queue.append((node.target, state.copy(), path + [node.target], new_stack, 0))
+
+                # --- RETURN ---
+                elif isinstance(node, Return):
+                    if call_stack:
+                        # Pop the return address
+                        return_label, return_index = call_stack[-1]
+                        new_stack = call_stack[:-1]
+                        
+                        # Continue from the return address
+                        queue.append((return_label, state.copy(), path + [return_label], new_stack, return_index))
+                    # If stack is empty, this is the end of the scenario - do nothing
 
                 # --- CONDITION ---
                 elif isinstance(node, Condition):
@@ -177,13 +217,13 @@ class StateAnalyzer:
                         for stmt in node.body:
                             if hasattr(stmt, 'target'):
                                 # Handle jump statements in condition body
-                                queue.append((stmt.target, state.copy(), path + [stmt.target]))
+                                queue.append((stmt.target, state.copy(), path + [stmt.target], call_stack.copy(), 0))
                             elif isinstance(stmt, Condition):
                                 # Handle nested conditions
-                                queue.append((label, state.copy(), path.copy()))
+                                queue.append((label, state.copy(), path.copy(), call_stack.copy(), idx + 1))
                             else:
                                 # Add to queue to process this statement
-                                queue.append((label, state.copy(), path.copy()))
+                                queue.append((label, state.copy(), path.copy(), call_stack.copy(), idx + 1))
 
                     # Process else branch if it exists
                     # Check if there's any else-like structure in the body
@@ -200,12 +240,14 @@ class StateAnalyzer:
                                 option_state = self._apply(option_state, stmt)
                             elif hasattr(stmt, 'target'):
                                 # Add the target label with updated state
-                                queue.append((stmt.target, option_state.copy(), path + [stmt.target]))
+                                queue.append((stmt.target, option_state.copy(), path + [stmt.target], call_stack.copy(), 0))
 
                 # --- JUMP ---
                 elif hasattr(node, "target"):
                     # Process jump statements to ensure all paths are traversed
-                    queue.append((node.target, state.copy(), path + [node.target]))
+                    queue.append((node.target, state.copy(), path + [node.target], call_stack.copy(), 0))
+                    # After a jump, we don't continue processing the current label's body
+                    break
 
         return results
 

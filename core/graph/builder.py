@@ -1,5 +1,5 @@
 from collections import defaultdict
-from core.ir.model import Script, Jump, Menu
+from core.ir.model import Script, Jump, Call, Menu
 
 
 class GraphBuilder:
@@ -19,7 +19,7 @@ class GraphBuilder:
     def _walk_body(self, current_label: str, body, graph):
         for node in body:
 
-            if isinstance(node, Jump):
+            if isinstance(node, (Jump, Call)):
                 graph[current_label].add(node.target)
 
             elif isinstance(node, Menu):

@@ -66,6 +66,8 @@ def preprocess_code(code: str) -> Tuple[str, List[Dict]]:
         elif (stripped.startswith('$') or
               stripped.startswith('label ') or 
               stripped.startswith('jump ') or
+              (stripped.startswith('call ') and not stripped.startswith('call screen')) or
+              stripped.startswith('return') or
               stripped.startswith('menu:') or
               stripped.startswith('menu ') or
               stripped.startswith('if ') or

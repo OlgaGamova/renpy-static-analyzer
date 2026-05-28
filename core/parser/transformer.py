@@ -1,5 +1,5 @@
 from lark import Transformer
-from core.ir.model import Script, Label, Jump, Say, Menu, MenuOption, Assignment, Condition, UnknownStatement
+from core.ir.model import Script, Label, Jump, Call, Return, Say, Menu, MenuOption, Assignment, Condition, UnknownStatement
 from lark import Transformer, Token
 
 class RenPyTransformer(Transformer):
@@ -36,6 +36,25 @@ class RenPyTransformer(Transformer):
         line = getattr(items[0], 'line', None)
         column = getattr(items[0], 'column', None)
         return Jump(target=target, line=line, column=column)
+
+    def call(self, items):
+        # items can be: [target] or [target, 'from', return_label]
+        target = str(items[0])
+        line = getattr(items[0], 'line', None)
+        column = getattr(items[0], 'column', None)
+        # Note: We ignore the 'from' clause for now since our state analyzer
+        # automatically tracks return addresses. The 'from' label is not needed.
+        return Call(target=target, line=line, column=column)
+
+    def return_stmt(self, items):
+        # Get line/column from the 'return' token if available
+        line = None
+        column = None
+        if items and len(items) > 0:
+            token = items[0]
+            line = getattr(token, 'line', None)
+            column = getattr(token, 'column', None)
+        return Return(line=line, column=column)
 
     def say(self, items):
         text = items[0][1:-1]

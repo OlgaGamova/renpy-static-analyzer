@@ -3,6 +3,8 @@ start: (_NEWLINE | statement)*
 
 ?statement: label
           | jump
+          | call
+          | return_stmt
           | menu
           | say
           | assignment
@@ -12,6 +14,10 @@ start: (_NEWLINE | statement)*
 label: "label" ("."?) NAME ":" _NEWLINE INDENT statement+ DEDENT
 
 jump: "jump" NAME _NEWLINE?
+
+call: "call" NAME ["from" NAME] _NEWLINE?
+
+return_stmt: "return" _NEWLINE?
 
 menu: "menu" ":" _NEWLINE INDENT menu_option+ DEDENT
 
