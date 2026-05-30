@@ -685,11 +685,11 @@ async function analyze() {
             'curve-style': 'bezier'
           }
         },
-        { selector: '.unreachable', style: { 'background-color': '#8e8e93' }},
-        { selector: '.missing', style: { 'background-color': '#ff9500' }},
-        { selector: '.infinite', style: { 'background-color': '#ffcc00' }},
+        { selector: '.dead-end', style: { 'background-color': '#e74c3c', 'border-color': '#c0392b' }},
         { selector: '.bad-state', style: { 'background-color': '#af52de' }},
-        { selector: '.dead-end', style: { 'background-color': '#e74c3c', 'border-color': '#c0392b' }}
+        { selector: '.infinite', style: { 'background-color': '#ffcc00' }},
+        { selector: '.missing', style: { 'background-color': '#ff9500' }},
+        { selector: '.unreachable', style: { 'background-color': '#8e8e93' }}
       ],
 
       layout: {
