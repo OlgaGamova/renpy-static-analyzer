@@ -399,6 +399,41 @@ body {
   padding: 20px;
 }
 
+.paths-toggle {
+  color: #667eea;
+  cursor: pointer;
+  font-style: italic;
+  font-weight: 500;
+  border-bottom: 1px dashed #667eea;
+  transition: color 0.2s;
+}
+
+.paths-toggle:hover {
+  color: #764ba2;
+  border-bottom-color: #764ba2;
+}
+
+.paths-list {
+  display: none;
+  margin-top: 6px;
+  padding: 8px 10px;
+  background: rgba(102, 126, 234, 0.06);
+  border-radius: 6px;
+  border-left: 2px solid #667eea;
+}
+
+.paths-list.visible {
+  display: block;
+}
+
+.paths-list div {
+  font-size: 11px;
+  color: #555;
+  padding: 2px 0;
+  white-space: normal;
+  word-break: break-word;
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -592,6 +627,7 @@ async function analyze() {
 
   document.getElementById('report').innerHTML = '<div class="loading">Анализ выполняется...</div>';
   document.getElementById('nodeCode').innerHTML = 'Кликните на любой узел графа';
+  pathCounter = 0;
 
   try {
     const res = await fetch("http://127.0.0.1:8000/analyze", {
@@ -743,24 +779,26 @@ async function analyze() {
           <strong>${p.label}${typeInfo}</strong><br>
           Требуется: ${p.var} ${p.type === 'flag' ? '' : '≥'} ${p.required}<br>
           Диапазон: ${rangeInfo}<br>
-          Путь: ${pathInfo}${p.occurrences > 1 ? ` <em>(+${p.occurrences - 1} других путей)</em>` : ''}
+          Путь: ${pathInfo}${renderPathsToggle(p.paths, p.occurrences)}
         </div>`;
       });
       reportHtml += '</div></div>';
     }
 
-    if (analysis.state?.always_true_conditions?.length) {
+    if (analysis.state_always_true_aggregated?.length) {
       hasErrors = true;
       reportHtml += '<div class="report-section">';
       reportHtml += '<div class="report-section-title">⚠️ Всегда истинные условия</div>';
       reportHtml += '<div class="report-section-content">';
-      analysis.state.always_true_conditions.forEach(p => {
+      analysis.state_always_true_aggregated.forEach(p => {
         const lineInfo = p.line ? ` (строка ${p.line})` : '';
+        const rangeInfo = p.ranges && p.ranges.length > 0 ? `[${p.ranges[0][0]}, ${p.ranges[0][1]}]` : '';
+        const firstPath = p.paths && p.paths.length > 0 ? p.paths[0].join(' → ') : '';
         reportHtml += `<div style="margin-bottom: 12px; padding-left: 12px; border-left: 3px solid #ff9800;">
           <strong>${p.label}${lineInfo}</strong><br>
           Условие: ${p.var} ${p.op} ${p.value} всегда истинно<br>
-          Диапазон: [${p.range[0]}, ${p.range[1]}]<br>
-          Путь: ${p.path.join(' → ')}
+          ${rangeInfo ? `Диапазон: ${rangeInfo}<br>` : ''}
+          Путь: ${firstPath}${renderPathsToggle(p.paths, p.occurrences)}
         </div>`;
       });
       reportHtml += '</div></div>';
@@ -779,7 +817,7 @@ async function analyze() {
           <strong>${fc.label}${lineInfo}</strong><br>
           Флаг: ${fc.var}<br>
           Значения на разных путях: ${valuesInfo}<br>
-          Путь: ${pathInfo}${fc.occurrences > 1 ? ` <em>(+${fc.occurrences - 1} других путей)</em>` : ''}
+          Путь: ${pathInfo}${renderPathsToggle(fc.paths, fc.occurrences)}
         </div>`;
       });
       reportHtml += '</div></div>';
@@ -815,6 +853,33 @@ async function analyze() {
     document.getElementById('report').innerHTML = `<div style="color: #e74c3c;">Ошибка: ${err.message}</div>`;
     document.getElementById('nodeCode').innerHTML = 'Ошибка подключения к серверу';
   }
+}
+
+function togglePaths(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const toggle = el.previousElementSibling;
+  if (el.classList.contains('visible')) {
+    el.classList.remove('visible');
+    if (toggle) toggle.textContent = toggle.textContent.replace('▲ скрыть пути', '▼ показать пути');
+  } else {
+    el.classList.add('visible');
+    if (toggle) toggle.textContent = toggle.textContent.replace('▼ показать пути', '▲ скрыть пути');
+  }
+}
+
+let pathCounter = 0;
+
+function renderPathsToggle(paths, occurrences) {
+  if (!paths || paths.length <= 1) return '';
+  const id = 'paths-' + (++pathCounter);
+  let html = `<span class="paths-toggle" onclick="togglePaths('${id}')">▼ показать пути</span>`;
+  html += `<div class="paths-list" id="${id}">`;
+  paths.forEach((p, i) => {
+    html += `<div>${i + 1}. ${p.join(' → ')}</div>`;
+  });
+  html += '</div>';
+  return html;
 }
 
 function escapeHtml(str) {

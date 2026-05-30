@@ -142,31 +142,32 @@ def build_recommendations(analysis):
         else:
             recs.append(f"Бесконечный цикл: {' → '.join(loop_nodes)} — добавьте условие выхода из цикла")
 
-    for err in analysis["state"]["impossible_conditions"]:
+    for err in analysis.get("state_impossible_aggregated", []):
         line = err.get("line", None)
         if line is not None:
             recs.append(
-                f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (макс {err['range'][1]}) (строка {line}) — снизьте порог или добавьте больше выборов, дающих очки опыта"
+                f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (строка {line}) — снизьте порог или добавьте больше выборов, дающих очки опыта"
             )
         else:
             recs.append(
-                f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо (макс {err['range'][1]}) — снизьте порог или добавьте больше выборов, дающих очки опыта"
+                f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо — снизьте порог или добавьте больше выборов, дающих очки опыта"
             )
 
-    # Always-true conditions (E07)
-    for at in analysis["state"].get("always_true_conditions", []):
+    # Always-true conditions (E07) - use aggregated data
+    for at in analysis.get("state_always_true_aggregated", []):
         line = at.get("line", None)
         lbl = at.get("label")
         var = at.get("var")
         op = at.get("op")
         val = at.get("value")
+        occ = at.get("occurrences", 1)
         if line is not None:
             recs.append(f"{lbl}: Условие '{var} {op} {val}' всегда истинно — ветка else никогда не выполнится (строка {line}). Проверьте логику условия — возможно, вы перепутали знак сравнения или переменная не может принять нужное значение.")
         else:
             recs.append(f"{lbl}: Условие '{var} {op} {val}' всегда истинно — ветка else никогда не выполнится. Проверьте логику условия — возможно, вы перепутали знак сравнения или переменная не может принять нужное значение.")
 
-    # Flag contradictions (E08)
-    for fc in analysis["state"].get("flag_contradictions", []):
+    # Flag contradictions (E08) - use aggregated data
+    for fc in analysis.get("state_flag_contradictions_aggregated", []):
         line = fc.get("line", None)
         lbl = fc.get("label")
         var = fc.get("var")
@@ -368,6 +369,40 @@ def analyze_script(req: ScriptRequest):
             if fc.get("line") is not None:
                 item["lines"].add(fc.get("line"))
 
+        # Aggregate always-true conditions (dedupe by label+var+op+value)
+        agg_at = {}
+        for at in state_analysis.get("always_true_conditions", []):
+            key = (at.get("label"), at.get("var"), at.get("op"), at.get("value"))
+            item = agg_at.setdefault(key, {
+                "label": at.get("label"),
+                "var": at.get("var"),
+                "op": at.get("op"),
+                "value": at.get("value"),
+                "ranges": set(),
+                "paths": set(),
+                "lines": set()
+            })
+            rng = at.get("range")
+            if isinstance(rng, (list, tuple)):
+                item["ranges"].add((rng[0], rng[1]))
+            if at.get("path"):
+                item["paths"].add(tuple(at.get("path")))
+            if at.get("line") is not None:
+                item["lines"].add(at.get("line"))
+
+        always_true_aggregated = []
+        for k, v in agg_at.items():
+            always_true_aggregated.append({
+                "label": v["label"],
+                "var": v["var"],
+                "op": v["op"],
+                "value": v["value"],
+                "ranges": list(v["ranges"]),
+                "paths": [list(p) for p in v["paths"]],
+                "line": (min(v["lines"]) if v["lines"] else None),
+                "occurrences": len(v["paths"]) or 1
+            })
+
         flag_contradictions_aggregated = []
         for k, v in agg_fc.items():
             flag_contradictions_aggregated.append({
@@ -524,6 +559,7 @@ def analyze_script(req: ScriptRequest):
             # Aggregated summaries to help frontend avoid duplicate entries
             "state_impossible_aggregated": impossible_aggregated,
             "state_flag_contradictions_aggregated": flag_contradictions_aggregated,
+            "state_always_true_aggregated": always_true_aggregated,
             "warnings": warnings
         }
 
