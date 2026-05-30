@@ -1,5 +1,5 @@
 from lark import Transformer
-from core.ir.model import Script, Label, Jump, Call, Return, Say, Menu, MenuOption, Assignment, Condition, UnknownStatement
+from core.ir.model import Script, Label, Jump, Call, Return, Say, Menu, MenuOption, Assignment, Condition, ElifBranch, UnknownStatement, Statement
 from lark import Transformer, Token
 
 class RenPyTransformer(Transformer):
@@ -157,10 +157,16 @@ class RenPyTransformer(Transformer):
             return Assignment(var=source, op="=", value=0, line=line, column=column)
 
     def condition(self, items):
-        var = str(items[0])
-        line = getattr(items[0], 'line', None)
-        column = getattr(items[0], 'column', None)
-        if items[1] is not None:
+        # Grammar: "if" NAME [OP NUMBER] ":" _NEWLINE INDENT statement+ DEDENT elif_branch* else_branch?
+        # items structure: [NAME, (OP|None), (NUMBER|None), *statements, *ElifBranch, *(else_statements)]
+        
+        # Find where if-body ends and elif/else starts
+        var_token = items[0]
+        var = str(var_token)
+        line = getattr(var_token, 'line', None)
+        column = getattr(var_token, 'column', None)
+        
+        if items[1] is not None and not isinstance(items[1], (Statement, ElifBranch, list)):
             op = str(items[1])
             value = int(items[2])
             body_start = 3
@@ -169,12 +175,61 @@ class RenPyTransformer(Transformer):
             value = 0  # if var: means var != 0
             body_start = 1
 
+        # Separate body statements, elif branches, and else body
+        body = []
+        elif_branches = []
+        else_body = []
+        
+        for item in items[body_start:]:
+            if isinstance(item, ElifBranch):
+                elif_branches.append(item)
+            elif isinstance(item, list) and len(item) == 1 and isinstance(item[0], Statement) and not isinstance(item[0], ElifBranch):
+                # else_body is returned as a list from else_branch method
+                else_body = item
+            elif isinstance(item, Statement) and not isinstance(item, ElifBranch):
+                body.append(item)
+            elif isinstance(item, Token):
+                # Skip tokens (newlines, indent/dedent markers)
+                continue
+            elif isinstance(item, list):
+                # Could be else_body wrapped in a list
+                for sub in item:
+                    if isinstance(sub, Statement):
+                        body.append(sub)
+
+        return Condition(var=var, op=op, value=value, body=body, 
+                         elif_branches=elif_branches, else_body=else_body,
+                         line=line, column=column)
+
+    def elif_branch(self, items):
+        var_token = items[0]
+        var = str(var_token)
+        line = getattr(var_token, 'line', None)
+        column = getattr(var_token, 'column', None)
+        
+        if items[1] is not None and not isinstance(items[1], (Statement, list)):
+            op = str(items[1])
+            value = int(items[2])
+            body_start = 3
+        else:
+            op = "!="
+            value = 0
+            body_start = 1
+
         body = [
             item for item in items[body_start:]
-            if not isinstance(item, Token)
+            if isinstance(item, Statement) and not isinstance(item, Token)
         ]
 
-        return Condition(var=var, op=op, value=value, body=body, line=line, column=column)
+        return ElifBranch(var=var, op=op, value=value, body=body, line=line, column=column)
+
+    def else_branch(self, items):
+        # items: [tokens/statements from the else block]
+        body = [
+            item for item in items
+            if isinstance(item, Statement) and not isinstance(item, Token)
+        ]
+        return body
 
     def unknown_statement(self, items):
         # items: [UNKNOWN_TOKEN, ...optional_block_statements...]

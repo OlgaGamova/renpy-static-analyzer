@@ -104,6 +104,10 @@ def format_label(label):
 
         elif name == "Condition":
             lines.append(f"if {stmt.var} {stmt.op} {stmt.value}")
+            for elif_br in getattr(stmt, 'elif_branches', []):
+                lines.append(f"elif {elif_br.var} {elif_br.op} {elif_br.value}")
+            if getattr(stmt, 'else_body', None):
+                lines.append("else")
 
         elif name == "Jump":
             lines.append(f"→ {stmt.target}")

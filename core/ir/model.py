@@ -92,11 +92,23 @@ class Assignment(Statement):
 
 
 @dataclass
+class ElifBranch:
+    var: str
+    op: str
+    value: int
+    body: List[Statement] = field(default_factory=list)
+    line: Optional[int] = None
+    column: Optional[int] = None
+
+
+@dataclass
 class Condition(Statement):
     var: str
     op: str
     value: int
     body: List[Statement] = field(default_factory=list)
+    elif_branches: List[ElifBranch] = field(default_factory=list)
+    else_body: List[Statement] = field(default_factory=list)
     line: Optional[int] = None
     column: Optional[int] = None
 

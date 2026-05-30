@@ -1,4 +1,4 @@
-from core.ir.model import Assignment, Condition, Menu, Call, Return
+from core.ir.model import Assignment, Condition, ElifBranch, Menu, Call, Return
 from collections import deque
 
 INF = float("inf")
@@ -218,6 +218,8 @@ class StateAnalyzer:
                             if hasattr(stmt, 'target'):
                                 # Handle jump statements in condition body
                                 queue.append((stmt.target, state.copy(), path + [stmt.target], call_stack.copy(), 0))
+                            elif isinstance(stmt, Assignment):
+                                state = self._apply(state, stmt)
                             elif isinstance(stmt, Condition):
                                 # Handle nested conditions
                                 queue.append((label, state.copy(), path.copy(), call_stack.copy(), idx + 1))
@@ -225,9 +227,23 @@ class StateAnalyzer:
                                 # Add to queue to process this statement
                                 queue.append((label, state.copy(), path.copy(), call_stack.copy(), idx + 1))
 
+                    # Process elif branches (each represents a mutually exclusive path)
+                    for elif_br in node.elif_branches:
+                        elif_state = state.copy()
+                        for stmt in elif_br.body:
+                            if hasattr(stmt, 'target'):
+                                queue.append((stmt.target, elif_state.copy(), path + [stmt.target], call_stack.copy(), 0))
+                            elif isinstance(stmt, Assignment):
+                                elif_state = self._apply(elif_state, stmt)
+
                     # Process else branch if it exists
-                    # Check if there's any else-like structure in the body
-                    # Since Condition doesn't have else_body, we'll handle jump statements instead
+                    if node.else_body:
+                        else_state = state.copy()
+                        for stmt in node.else_body:
+                            if hasattr(stmt, 'target'):
+                                queue.append((stmt.target, else_state.copy(), path + [stmt.target], call_stack.copy(), 0))
+                            elif isinstance(stmt, Assignment):
+                                else_state = self._apply(else_state, stmt)
 
                 # --- MENU ---
                 elif isinstance(node, Menu):

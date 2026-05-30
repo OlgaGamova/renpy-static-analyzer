@@ -31,9 +31,13 @@ assignment: DOLLAR_ASSIGN _NEWLINE?
 
 DOLLAR_ASSIGN.2: "$" /[^\n]*/
 
-condition: "if" NAME [OP NUMBER] ":" _NEWLINE INDENT statement+ DEDENT
+condition: "if" NAME [OP NUMBER] ":" _NEWLINE INDENT statement+ DEDENT elif_branch* else_branch?
 
-OP: ">=" | "<=" | ">" | "<" | "=="
+elif_branch: "elif" NAME [OP NUMBER] ":" _NEWLINE INDENT statement+ DEDENT
+
+else_branch: "else" ":" _NEWLINE INDENT statement+ DEDENT
+
+OP: ">=" | "<=" | ">" | "<" | "==" | "!="
 
 UNKNOWN_TOKEN: "__UNKNOWN__"
 unknown_statement: UNKNOWN_TOKEN _NEWLINE? (INDENT statement+ DEDENT)?

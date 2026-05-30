@@ -69,6 +69,19 @@ class GraphBuilder:
                 self._is_terminal(opt.body) for opt in last_non_label.options
             )
 
+        # Condition with elif/else: terminal if ALL branches end with jump/return
+        if hasattr(last_non_label, 'elif_branches'):
+            # All if/elif/else branches must be terminal for the condition to be terminal
+            all_branches = [last_non_label.body]
+            all_branches.extend(br.body for br in last_non_label.elif_branches)
+            if last_non_label.else_body:
+                all_branches.append(last_non_label.else_body)
+            else:
+                # No else branch means fall-through is possible
+                return False
+            # Must have else for terminal, and all branches must be terminal
+            return all(self._is_terminal(b) for b in all_branches)
+
         return False
 
     def _walk_body(self, current_label: str, body, graph):
@@ -83,4 +96,11 @@ class GraphBuilder:
 
             elif hasattr(node, "body") and not isinstance(node, Label):
                 self._walk_body(current_label, node.body, graph)
+                # Walk elif branches
+                if hasattr(node, 'elif_branches'):
+                    for elif_br in node.elif_branches:
+                        self._walk_body(current_label, elif_br.body, graph)
+                # Walk else body
+                if hasattr(node, 'else_body') and node.else_body:
+                    self._walk_body(current_label, node.else_body, graph)
 
