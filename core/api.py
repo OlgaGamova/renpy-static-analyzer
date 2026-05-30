@@ -16,6 +16,9 @@ from core.ir.model import UnknownStatement
 
 app = FastAPI()
 
+# Backward-compatible alias: external test scripts import preprocess_code from core.api
+preprocess_code = RenPyParser.preprocess_code
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,65 +31,6 @@ app.mount("/static", StaticFiles(directory="web"), name="static")
 
 class ScriptRequest(BaseModel):
     code: str
-
-
-def preprocess_code(code: str) -> Tuple[str, List[Dict]]:
-    """
-    Preprocess Ren'Py code to replace unknown statements with __UNKNOWN__ markers.
-    Each line is processed independently - no child skipping.
-    The grammar supports __UNKNOWN__ with optional blocks (INDENT/DEDENT).
-    
-    Returns:
-        Tuple of (processed_code, replaced_lines_info)
-        where replaced_lines_info is a list of dicts: {line: int, text: str}
-    """
-    lines = code.split('\n')
-    processed_lines = []
-    replaced_lines_info = []
-    
-    for i, line in enumerate(lines):
-        line_num = i + 1
-        stripped = line.strip()
-        
-        # Handle comments: remove indented comments to avoid indenter issues
-        if stripped.startswith('#'):
-            # Check if this comment was indented
-            if line != line.lstrip() and len(line) - len(line.lstrip()) > 0:
-                # Indented comment - replace with empty line
-                processed_lines.append('')
-            else:
-                # Non-indented comment is safe
-                processed_lines.append(stripped)
-        elif stripped == '':
-            # Empty lines preserved as-is
-            processed_lines.append(line)
-        # Supported constructs
-        elif (stripped.startswith('$') or
-              stripped.startswith('label ') or 
-              stripped.startswith('label.') or
-              stripped.startswith('jump ') or
-              (stripped.startswith('call ') and not stripped.startswith('call screen')) or
-              stripped.startswith('return') or
-              stripped.startswith('menu:') or
-              stripped.startswith('menu ') or
-              stripped.startswith('if ') or
-              stripped.startswith('elif ') or
-              stripped.startswith('else:') or
-              stripped.startswith('"') or
-              stripped.startswith("'")):
-            processed_lines.append(line)
-        else:
-            # Unknown construct - replace with __UNKNOWN__ marker
-            # This preserves indentation and is recognized by the parser
-            indent = len(line) - len(line.lstrip())
-            replaced_lines_info.append({
-                'line': line_num,
-                'text': stripped
-            })
-            processed_lines.append(' ' * indent + '__UNKNOWN__')
-    
-    processed_code = '\n'.join(processed_lines)
-    return processed_code, replaced_lines_info
 
 
 # --- форматирование узла ---
@@ -187,14 +131,14 @@ def build_recommendations(analysis):
 @app.post("/analyze")
 def analyze_script(req: ScriptRequest):
     try:
-        # Step 1: Preprocess code to handle unknown statements
-        processed_code, replaced_lines_info = preprocess_code(req.code)
-        
+        # Step 1: Create parser and preprocess code to handle unknown statements
+        parser = RenPyParser()
+        processed_code, replaced_lines_info = parser.preprocess_code(req.code)
+
         # Build a lookup dict for fast access: line_number -> original_text
         original_texts = {info['line']: info['text'] for info in replaced_lines_info}
-        
+
         # Step 2: Parse the processed code
-        parser = RenPyParser()
         tree = parser.parse_text(processed_code)
 
         transformer = RenPyTransformer()
