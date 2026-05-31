@@ -44,14 +44,6 @@ python run_performance_tests.py  # Кроссплатформенно
 - **Сравнительные тесты**: оригинальные vs оптимизированные анализаторы
 - **Pytest тесты**: автоматические тесты производительности
 
-### Результаты
-- 📑 [PERFORMANCE_INDEX.md](PERFORMANCE_INDEX.md) - **НАЧНИТЕ ОТСЮДА!**
-- 📖 [PERFORMANCE_QUICKSTART.md](PERFORMANCE_QUICKSTART.md) - быстрый старт
-- 📖 [PERFORMANCE_TESTING.md](PERFORMANCE_TESTING.md) - подробное руководство
-- 📖 [PERFORMANCE_ANALYSIS.md](PERFORMANCE_ANALYSIS.md) - анализ проблем и оптимизации
-- 📖 [PERFORMANCE_FULL_GUIDE.md](PERFORMANCE_FULL_GUIDE.md) - полная инструкция
-- 📖 [PERFORMANCE_SUMMARY.md](PERFORMANCE_SUMMARY.md) - общая сводка
-
 ### Пример
 ```bash
 # Генерация сценариев

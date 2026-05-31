@@ -27,13 +27,13 @@ class RenPyParser:
     @staticmethod
     def preprocess_code(code: str) -> Tuple[str, List[Dict]]:
         """
-        Preprocess Ren'Py code to replace unknown statements with __UNKNOWN__ markers.
-        Each line is processed independently - no child skipping.
-        The grammar supports __UNKNOWN__ with optional blocks (INDENT/DEDENT).
+        Препроцессинг кода Ren'Py: замена неизвестных операторов на маркеры __UNKNOWN__.
+        Каждая строка обрабатывается независимо — без пропуска дочерних элементов.
+        Грамматика поддерживает __UNKNOWN__ с опциональными блоками (INDENT/DEDENT).
 
-        Returns:
-            Tuple of (processed_code, replaced_lines_info)
-            where replaced_lines_info is a list of dicts: {line: int, text: str}
+        Возвращает:
+            Кортеж (processed_code, replaced_lines_info),
+            где replaced_lines_info — список словарей: {line: int, text: str}
         """
         lines = code.split('\n')
         processed_lines = []
@@ -43,7 +43,7 @@ class RenPyParser:
             line_num = i + 1
             stripped = line.strip()
 
-            # Handle comments: remove indented comments to avoid indenter issues
+            # Обработка комментариев: убрать комментарии с отступом, чтобы не ломать индентер
             if stripped.startswith('#'):
                 if line != line.lstrip() and len(line) - len(line.lstrip()) > 0:
                     processed_lines.append('')
@@ -51,7 +51,7 @@ class RenPyParser:
                     processed_lines.append(stripped)
             elif stripped == '':
                 processed_lines.append(line)
-            # Supported constructs
+            # Поддерживаемые конструкции
             elif (stripped.startswith('$') or
                   stripped.startswith('label ') or
                   stripped.startswith('label.') or
@@ -85,10 +85,10 @@ class RenPyParser:
             return self.parse_text(f.read())
 
     def preprocess_and_parse(self, code: str) -> Tuple[object, List[Dict]]:
-        """Preprocess Ren'Py code and parse it in one step.
+        """Препроцессинг и парсинг кода Ren'Py за один шаг.
 
-        Returns:
-            Tuple of (parse_tree, replaced_lines_info)
+        Возвращает:
+            Кортеж (parse_tree, replaced_lines_info)
         """
         processed_code, replaced_lines_info = self.preprocess_code(code)
         tree = self.parse_text(processed_code)

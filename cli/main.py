@@ -12,6 +12,9 @@ from core.analysis.dead_ends import DeadEndAnalyzer
 from core.analysis.infinite_loops import InfiniteLoopAnalyzer
 from core.analysis.state import StateAnalyzer
 
+# ВНИМАНИЕ: Данный скрипт является устаревшим и не используется в основном сервисе.
+# Основная функциональность перенесена в веб-интерфейс (FastAPI + frontend).
+# Оставлен только для возможного локального тестирования или отладки.
 
 def analyze_file(file_path: str):
     print("\n" + "=" * 50)
@@ -19,7 +22,7 @@ def analyze_file(file_path: str):
     print("=" * 50)
 
     # -------------------------
-    # PARSE
+    # ПАРСИНГ
     # -------------------------
     parser = RenPyParser()
     tree = parser.parse_file(file_path)
@@ -28,7 +31,7 @@ def analyze_file(file_path: str):
     print(tree.pretty())
 
     # -------------------------
-    # TRANSFORM → IR
+    # ТРАНСФОРМАЦИЯ → IR
     # -------------------------
     transformer = RenPyTransformer()
     script = transformer.transform(tree)
@@ -36,7 +39,7 @@ def analyze_file(file_path: str):
     print("\n=== IR MODEL ===")
     print(script)
 
-    # 🔥 КРИТИЧЕСКИЙ DEBUG (показывает реальные ноды)
+    # КРИТИЧЕСКИЙ ОТЛАДЧИК (показывает реальные ноды)
     print("\n=== DEBUG IR ===")
     for label in script.labels.values():
         print(f"\nLabel: {label.name}")
@@ -44,7 +47,7 @@ def analyze_file(file_path: str):
             print("  ", type(node).__name__, node)
 
     # -------------------------
-    # GRAPH
+    # ГРАФ
     # -------------------------
     builder = GraphBuilder()
     graph = builder.build(script)
@@ -55,7 +58,7 @@ def analyze_file(file_path: str):
             print(f"{src} -> {tgt}")
 
     # -------------------------
-    # ANALYSIS
+    # АНАЛИЗ
     # -------------------------
     print("\n=== ANALYSIS ===")
 
@@ -84,7 +87,7 @@ def analyze_file(file_path: str):
             )
 
     # -------------------------
-    # VISUALIZATION
+    # ВИЗУАЛИЗАЦИЯ
     # -------------------------
     visualizer = GraphVisualizer()
     visualizer.render(graph, output_file=f"{file_path.split('/')[-1]}.html")

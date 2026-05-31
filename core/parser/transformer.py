@@ -9,12 +9,12 @@ class RenPyTransformer(Transformer):
         for item in items:
             if isinstance(item, Label):
                 script.add_label(item)
-                # Also extract nested labels from this label's body
+                # Также извлечь вложенные метки из тела этой метки
                 self._extract_nested_labels(item, script)
         return script
     
     def _extract_nested_labels(self, label, script):
-        """Recursively extract nested labels from a label's body and add them to the script."""
+        """Рекурсивно извлечь вложенные метки из тела метки и добавить их в скрипт."""
         nested_labels = []
         new_body = []
         for stmt in label.body:
@@ -22,22 +22,22 @@ class RenPyTransformer(Transformer):
                 nested_labels.append(stmt)
                 script.add_label(stmt)
                 self._extract_nested_labels(stmt, script)
-                new_body.append(stmt)  # Keep label reference in body for flow analysis
+                new_body.append(stmt)  # Оставить ссылку на метку в теле для анализа потока выполнения
             elif isinstance(stmt, list):
-                # Handle lists of statements (e.g., from unknown_statement blocks)
+                # Обработка списков операторов (например, из блоков unknown_statement)
                 for sub_stmt in stmt:
                     if isinstance(sub_stmt, Label):
                         nested_labels.append(sub_stmt)
                         script.add_label(sub_stmt)
                         self._extract_nested_labels(sub_stmt, script)
-                # Keep the list in body (contains UnknownStatement + any Labels)
+                # Оставить список в теле (содержит UnknownStatement + возможные метки)
                 new_body.append(stmt)
             else:
                 new_body.append(stmt)
         label.body = new_body
 
     def label(self, items):
-        # Handle dot-labels (local labels)
+        # Обработка локальных меток с точкой (dot-labels)
         if items[0] == '.':
             name = "." + str(items[1])
             line = getattr(items[1], 'line', None)
@@ -63,16 +63,16 @@ class RenPyTransformer(Transformer):
         return Jump(target=target, line=line, column=column)
 
     def call(self, items):
-        # items can be: [target] or [target, 'from', return_label]
+        # items может быть: [target] или [target, 'from', return_label]
         target = str(items[0])
         line = getattr(items[0], 'line', None)
         column = getattr(items[0], 'column', None)
-        # Note: We ignore the 'from' clause for now since our state analyzer
-        # automatically tracks return addresses. The 'from' label is not needed.
+        # Примечание: предложение 'from' пока игнорируется, так как наш анализатор
+        # состояний автоматически отслеживает адреса возврата. Метка 'from' не нужна.
         return Call(target=target, line=line, column=column)
 
     def return_stmt(self, items):
-        # Get line/column from the 'return' token if available
+        # Получить строку/столбец из токена 'return', если доступен
         line = None
         column = None
         if items and len(items) > 0:
@@ -112,9 +112,9 @@ class RenPyTransformer(Transformer):
         return items[0]
 
     def assignment(self, items):
-        # New format: DOLLAR_ASSIGN _NEWLINE?
-        # DOLLAR_ASSIGN includes the "$", so we need to strip it
-        # items[0] is the entire expression including $
+        # Новый формат: DOLLAR_ASSIGN _NEWLINE?
+        # DOLLAR_ASSIGN включает "$", поэтому нужно его убрать
+        # items[0] — всё выражение включая $
         line = None
         column = None
         
@@ -124,14 +124,14 @@ class RenPyTransformer(Transformer):
             column = getattr(token, 'column', None)
             source = str(token).strip()
             
-            # Strip leading $ if present
+            # Убрать ведущий $, если есть
             if source.startswith('$'):
                 source = source[1:].strip()
         else:
             source = ""
         
-        # Try to parse simple assignments like "var = value" or "var=True"
-        # For complex expressions like "renpy.notify(...)", we just store the source
+        # Попытаться разобрать простые присваивания вида "var = value" или "var=True"
+        # Для сложных выражений вроде "renpy.notify(...)" просто сохраняем исходный код
         import re
         match = re.match(r'(\w+)\s*([+]?=)\s*(.+)', source)
         if match:
@@ -139,7 +139,7 @@ class RenPyTransformer(Transformer):
             op = match.group(2)
             val_str = match.group(3).strip()
             
-            # Convert True/False to 1/0
+            # Преобразовать True/False в 1/0
             if val_str == 'True':
                 value = 1
             elif val_str == 'False':
@@ -148,19 +148,19 @@ class RenPyTransformer(Transformer):
                 try:
                     value = int(val_str)
                 except ValueError:
-                    # For complex values, just use 0
+                    # Для сложных значений используем 0
                     value = 0
             
             return Assignment(var=var, op=op, value=value, line=line, column=column)
         else:
-            # Complex expression - create a dummy Assignment
+            # Сложное выражение — создать фиктивное присваивание
             return Assignment(var=source, op="=", value=0, line=line, column=column)
 
     def condition(self, items):
-        # Grammar: "if" NAME [OP NUMBER] ":" _NEWLINE INDENT statement+ DEDENT elif_branch* else_branch?
-        # items structure: [NAME, (OP|None), (NUMBER|None), *statements, *ElifBranch, *(else_statements)]
+        # Грамматика: "if" NAME [OP NUMBER] ":" _NEWLINE INDENT statement+ DEDENT elif_branch* else_branch?
+        # Структура items: [NAME, (OP|None), (NUMBER|None), *statements, *ElifBranch, *(else_statements)]
         
-        # Find where if-body ends and elif/else starts
+        # Найти, где заканчивается тело if и начинается elif/else
         var_token = items[0]
         var = str(var_token)
         line = getattr(var_token, 'line', None)
@@ -172,10 +172,10 @@ class RenPyTransformer(Transformer):
             body_start = 3
         else:
             op = "!="
-            value = 0  # if var: means var != 0
+            value = 0  # if var: означает var != 0
             body_start = 1
 
-        # Separate body statements, elif branches, and else body
+        # Разделить операторы тела, ветки elif и тело else
         body = []
         elif_branches = []
         else_body = []
@@ -184,15 +184,15 @@ class RenPyTransformer(Transformer):
             if isinstance(item, ElifBranch):
                 elif_branches.append(item)
             elif isinstance(item, list) and len(item) == 1 and isinstance(item[0], Statement) and not isinstance(item[0], ElifBranch):
-                # else_body is returned as a list from else_branch method
+                # else_body возвращается как список из метода else_branch
                 else_body = item
             elif isinstance(item, Statement) and not isinstance(item, ElifBranch):
                 body.append(item)
             elif isinstance(item, Token):
-                # Skip tokens (newlines, indent/dedent markers)
+                # Пропустить токены (переносы строк, маркеры indent/dedent)
                 continue
             elif isinstance(item, list):
-                # Could be else_body wrapped in a list
+                # Может быть else_body, обёрнутый в список
                 for sub in item:
                     if isinstance(sub, Statement):
                         body.append(sub)
@@ -224,7 +224,7 @@ class RenPyTransformer(Transformer):
         return ElifBranch(var=var, op=op, value=value, body=body, line=line, column=column)
 
     def else_branch(self, items):
-        # items: [tokens/statements from the else block]
+        # items: [токены/операторы из блока else]
         body = [
             item for item in items
             if isinstance(item, Statement) and not isinstance(item, Token)
@@ -232,9 +232,9 @@ class RenPyTransformer(Transformer):
         return body
 
     def unknown_statement(self, items):
-        # items: [UNKNOWN_TOKEN, ...optional_block_statements...]
-        # With grammar: UNKNOWN_TOKEN _NEWLINE? (INDENT statement+ DEDENT)?
-        # The block statements are included in items if present
+        # items: [UNKNOWN_TOKEN, ...операторы_опционального_блока...]
+        # Грамматика: UNKNOWN_TOKEN _NEWLINE? (INDENT statement+ DEDENT)?
+        # Операторы блока включены в items, если они есть
         line = None
         column = None
         body = []
@@ -245,14 +245,14 @@ class RenPyTransformer(Transformer):
                     line = getattr(item, 'line', None)
                     column = getattr(item, 'column', None)
             elif item is not None:
-                # This is a statement from the optional block
+                # Это оператор из опционального блока
                 body.append(item)
         
-        # If there are nested labels in the body, we need to return them
-        # so that the parent label can extract them via _extract_nested_labels
+        # Если в теле есть вложенные метки, их нужно вернуть,
+        # чтобы родительская метка могла извлечь их через _extract_nested_labels
         if body:
-            # Return a list: [UnknownStatement, Label1, Label2, ...]
-            # The _extract_nested_labels method will find and extract the Labels
+            # Вернуть список: [UnknownStatement, Label1, Label2, ...]
+            # Метод _extract_nested_labels найдёт и извлечёт метки
             result = [UnknownStatement(source="__UNKNOWN__", line=line, column=column)]
             result.extend(body)
             return result

@@ -2,7 +2,7 @@ from core.ir.model import Assignment, Condition, ElifBranch, Menu, Call, Return
 from collections import deque
 
 INF = float("inf")
-MAX_CALL_STACK_DEPTH = 10  # Maximum call stack depth to prevent infinite loops
+MAX_CALL_STACK_DEPTH = 10  # Максимальная глубина стека вызовов для предотвращения бесконечных циклов
 
 class StateAnalyzer:
     """
@@ -19,27 +19,27 @@ class StateAnalyzer:
             "always_true_conditions": [],
             "flag_contradictions": [],
             "undefined_labels": [],
-            "stack_overflow_warnings": []  # New: warnings about deep call stacks
+            "stack_overflow_warnings": []  # Предупреждения о глубоком стеке вызовов
         }
 
         # очередь для обхода: каждый элемент = (label, state, path, call_stack, operator_index)
-        # call_stack is a list of (return_label, next_index) tuples
-        # operator_index is the current position in the label's body
+        # call_stack — список кортежей (return_label, next_index)
+        # operator_index — текущая позиция в теле метки
         queue = deque()
         queue.append(("start", {}, ["start"], [], 0))
 
         visited = set()
         undefined_labels_checked = set()
-        # For simple detection of flag contradictions: record observed flag values per label
+        # Для простого определения противоречий флагов: записываем наблюдаемые значения флагов по меткам
         seen_flags = {}
         reported_flag_contradictions = set()
 
         while queue:
             label, state, path, call_stack, op_index = queue.popleft()
             
-            # Skip if label doesn't exist in the script
+            # Пропустить, если метки нет в скрипте
             if label not in script.labels:
-                # Report undefined label if not already reported
+                # Сообщить о неопределённой метке, если ещё не сообщалось
                 if label not in undefined_labels_checked:
                     undefined_labels_checked.add(label)
                     results["undefined_labels"].append({
@@ -53,7 +53,7 @@ class StateAnalyzer:
                 continue
             visited.add(key)
 
-            # collect flags seen at this label to detect simple contradictions across paths
+            # собрать флаги, замеченные на этой метке, для обнаружения простых противоречий между путями
             for var, val in state.items():
                 if isinstance(val, tuple) and len(val) == 2 and val[0] == 'flag':
                     lf = seen_flags.setdefault(label, {}).setdefault(var, set())
@@ -62,7 +62,7 @@ class StateAnalyzer:
                         rep_key = (label, var)
                         if rep_key not in reported_flag_contradictions:
                             reported_flag_contradictions.add(rep_key)
-                            # add to results
+                            # добавить в результаты
                             line_num = getattr(script.labels.get(label, None), 'line', None)
                             results["flag_contradictions"].append({
                                 "label": label,
@@ -74,21 +74,21 @@ class StateAnalyzer:
 
             body = script.labels[label].body
             
-            # Process statements starting from op_index
+            # Обработать операторы начиная с op_index
             for idx in range(op_index, len(body)):
                 node = body[idx]
 
-                # --- ASSIGNMENT ---
+                # --- ПРИСВАИВАНИЕ ---
                 if isinstance(node, Assignment):
                     state = self._apply(state, node)
 
-                # --- CALL ---
+                # --- ВЫЗОВ ---
                 elif isinstance(node, Call):
-                    # Save return address: (current_label, next_index)
+                    # Сохранить адрес возврата: (текущая_метка, следующий_индекс)
                     next_index = idx + 1
                     new_stack = call_stack + [(label, next_index)]
                     
-                    # Check stack depth limit
+                    # Проверить лимит глубины стека
                     if len(new_stack) > MAX_CALL_STACK_DEPTH:
                         line_num = getattr(node, 'line', None)
                         results["stack_overflow_warnings"].append({
@@ -99,26 +99,26 @@ class StateAnalyzer:
                             "max_depth": MAX_CALL_STACK_DEPTH,
                             "line": line_num
                         })
-                        # Don't add to queue to prevent infinite loops
+                        # Не добавлять в очередь, чтобы предотвратить бесконечные циклы
                         continue
                     
-                    # Jump to the called label
+                    # Перейти к вызываемой метке
                     queue.append((node.target, state.copy(), path + [node.target], new_stack, 0))
 
-                # --- RETURN ---
+                # --- ВОЗВРАТ ---
                 elif isinstance(node, Return):
                     if call_stack:
-                        # Pop the return address
+                        # Извлечь адрес возврата
                         return_label, return_index = call_stack[-1]
                         new_stack = call_stack[:-1]
                         
-                        # Continue from the return address
+                        # Продолжить с адреса возврата
                         queue.append((return_label, state.copy(), path + [return_label], new_stack, return_index))
-                    # If stack is empty, this is the end of the scenario - do nothing
+                    # Если стек пуст — это конец сценария, ничего не делаем
 
-                # --- CONDITION ---
+                # --- УСЛОВИЕ ---
                 elif isinstance(node, Condition):
-                    # Detect whether this is a flag-style condition (if flag / compare to 0/1)
+                    # Определить, является ли условие флаговым (if flag / сравнение с 0/1)
                     entry = state.get(node.var, None)
                     is_flag = False
                     flag_val = None
@@ -130,29 +130,29 @@ class StateAnalyzer:
                     elif isinstance(entry, tuple) and len(entry) == 2:
                         min_v, max_v = entry
                     else:
-                        # default numeric interval
+                        # числовой интервал по умолчанию
                         min_v, max_v = (0, 0)
 
-                    # Heuristic: if condition has no operator (empty) or compares to 0/1, treat as flag
+                    # Эвристика: если у условия нет оператора (пустой) или сравнение с 0/1, считать флагом
                     if (not node.op) or (node.op in ("==", "!=") and node.value in (0, 1)):
                         is_flag = True
 
-                    # --- FLAG condition handling ---
+                    # --- Обработка флагового условия ---
                     if is_flag:
-                        # expected boolean for condition: if node.value in (0,1) use that, else if no op -> True
+                        # ожидаемое булево значение для условия: если node.value в (0,1) — использовать его, иначе без op -> True
                         if node.op in ("==", "!=") and node.value in (0, 1):
                             expected = bool(node.value)
                             if node.op == "!=":
                                 expected = not expected
                         else:
-                            # plain `if var` means expect True
+                            # простой `if var` означает ожидание True
                             expected = True
 
-                        # If we have known flag value
+                        # Если значение флага известно
                         if flag_val is not None:
                             line_num = getattr(node, 'line', None)
                             if flag_val is not expected:
-                                # impossible flag condition
+                                # невозможное флаговое условие
                                 results["impossible_conditions"].append({
                                     "label": label,
                                     "path": path.copy(),
@@ -163,7 +163,7 @@ class StateAnalyzer:
                                     "type": "flag"
                                 })
                             else:
-                                # condition always true for flag
+                                # условие всегда истинно для флага
                                 line_num = getattr(node, 'line', None)
                                 results["always_true_conditions"].append({
                                     "label": label,
@@ -175,14 +175,14 @@ class StateAnalyzer:
                                     "line": line_num
                                 })
                         else:
-                            # unknown flag (None) - nothing to assert, continue
+                            # неизвестный флаг (None) — нечего утверждать, продолжаем
                             pass
 
                     else:
-                        # Numeric condition handling
-                        # Always check if condition is impossible
+                        # Обработка числового условия
+                        # Всегда проверять, невозможно ли условие
                         if not self._check(min_v, max_v, node.op, node.value):
-                            # Get line number from condition node if available
+                            # Получить номер строки из узла условия, если доступен
                             line_num = getattr(node, 'line', None)
                             
                             results["impossible_conditions"].append({
@@ -194,10 +194,10 @@ class StateAnalyzer:
                                 "line": line_num
                             })
 
-                        # Additionally detect always-true: inverse impossible
+                        # Также обнаружить всегда истинные: инвертировать невозможность
                         inv_op = self._invert_op(node.op)
                         if inv_op and not self._check(min_v, max_v, inv_op, node.value):
-                            # inverse impossible => condition always true
+                            # обратное невозможно => условие всегда истинно
                             line_num = getattr(node, 'line', None)
                             results["always_true_conditions"].append({
                                 "label": label,
@@ -208,26 +208,26 @@ class StateAnalyzer:
                                 "range": (min_v, max_v),
                                 "line": line_num
                             })
-                        # DON'T continue - still need to process other statements in body
-                        # The condition might have a body with jumps that we need to explore
+                        # НЕ продолжать — всё ещё нужно обработать другие операторы в теле
+                        # В теле условия могут быть переходы, которые нужно исследовать
                     
-                    # Process the condition body (true branch) - ALWAYS explore
+                    # Обработать тело условия (ветка true) — ВСЕГДА исследовать
                     if node.body:
-                        # Process each statement in the body
+                        # Обработать каждый оператор в теле
                         for stmt in node.body:
                             if hasattr(stmt, 'target'):
-                                # Handle jump statements in condition body
+                                # Обработать операторы перехода в теле условия
                                 queue.append((stmt.target, state.copy(), path + [stmt.target], call_stack.copy(), 0))
                             elif isinstance(stmt, Assignment):
                                 state = self._apply(state, stmt)
                             elif isinstance(stmt, Condition):
-                                # Handle nested conditions
+                                # Обработать вложенные условия
                                 queue.append((label, state.copy(), path.copy(), call_stack.copy(), idx + 1))
                             else:
-                                # Add to queue to process this statement
+                                # Добавить в очередь для обработки этого оператора
                                 queue.append((label, state.copy(), path.copy(), call_stack.copy(), idx + 1))
 
-                    # Process elif branches (each represents a mutually exclusive path)
+                    # Обработать ветки elif (каждая представляет взаимоисключающий путь)
                     for elif_br in node.elif_branches:
                         elif_state = state.copy()
                         for stmt in elif_br.body:
@@ -236,7 +236,7 @@ class StateAnalyzer:
                             elif isinstance(stmt, Assignment):
                                 elif_state = self._apply(elif_state, stmt)
 
-                    # Process else branch if it exists
+                    # Обработать ветку else, если она есть
                     if node.else_body:
                         else_state = state.copy()
                         for stmt in node.else_body:
@@ -245,38 +245,38 @@ class StateAnalyzer:
                             elif isinstance(stmt, Assignment):
                                 else_state = self._apply(else_state, stmt)
 
-                # --- MENU ---
+                # --- МЕНЮ ---
                 elif isinstance(node, Menu):
-                    # Handle menu options - each option leads to different paths
+                    # Обработать опции меню — каждая опция ведёт к разным путям
                     for option in node.options:
-                        # Process each option's body
+                        # Обработать тело каждой опции
                         option_state = state.copy()
                         for stmt in option.body:
                             if isinstance(stmt, Assignment):
                                 option_state = self._apply(option_state, stmt)
                             elif hasattr(stmt, 'target'):
-                                # Add the target label with updated state
+                                # Добавить целевую метку с обновлённым состоянием
                                 queue.append((stmt.target, option_state.copy(), path + [stmt.target], call_stack.copy(), 0))
 
-                # --- JUMP ---
+                # --- ПЕРЕХОД ---
                 elif hasattr(node, "target"):
-                    # Process jump statements to ensure all paths are traversed
+                    # Обработать операторы перехода, чтобы обеспечить обход всех путей
                     queue.append((node.target, state.copy(), path + [node.target], call_stack.copy(), 0))
-                    # After a jump, we don't continue processing the current label's body
+                    # После перехода не продолжаем обработку тела текущей метки
                     break
 
         return results
 
     def _apply(self, state, node: Assignment):
         state = state.copy()
-        # If assignment looks like a boolean assignment (0/1), treat as flag
+        # Если присваивание похоже на булево (0/1), считать флагом
         if node.op == "=" and node.value in (0, 1):
             state[node.var] = ('flag', bool(node.value))
             return state
 
-        # Numeric handling
+        # Числовая обработка
         existing = state.get(node.var, (0, 0))
-        # If previously recorded as a flag, promote to numeric for arithmetic ops
+        # Если ранее было записано как флаг, повысить до числового для арифметических операций
         if isinstance(existing, tuple) and len(existing) == 2 and existing[0] == 'flag':
             fv = existing[1]
             if fv is None:

@@ -25,8 +25,8 @@ menu_option: STRING ":" _NEWLINE INDENT statement+ DEDENT
 
 say: STRING _NEWLINE?
 
-# Support any $ assignment: $var=value, $ renpy.notify(...), $var=True, etc.
-# Priority .2 makes it lower than NAME, STRING, etc.
+# Поддержка любых $ assignment: $var=value, $ renpy.notify(...), $var=True, etc.
+# Приоритет .2 делает его ниже, чем у NAME, STRING и т.д.
 assignment: DOLLAR_ASSIGN _NEWLINE?
 
 DOLLAR_ASSIGN.2: "$" /[^\n]*/

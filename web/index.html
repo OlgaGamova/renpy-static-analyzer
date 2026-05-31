@@ -171,7 +171,6 @@ body {
   border: 1px solid #e0e0e8;
   font-size: 13px;
   line-height: 1.5;
-  /* overflow: auto – убрано, теперь скролл внутри .CodeMirror-scroll */
 }
 
 .CodeMirror-scroll {
@@ -454,9 +453,9 @@ body {
   background: #aaa;
 }
 
-/* ===== RESPONSIVE ===== */
+/* ===== АДАПТИВНЫЙ ДИЗАЙН ===== */
 
-/* Tablet: 2-column layout, reduced spacing */
+/* Планшет: 2-колоночная раскладка, уменьшенные отступы */
 @media (max-width: 1200px) {
   .main-grid {
     grid-template-columns: 280px 1fr;
@@ -468,7 +467,7 @@ body {
   }
 }
 
-/* Small tablet / large phone */
+/* Маленький планшет / большой телефон */
 @media (max-width: 900px) {
   body {
     padding: 12px;
@@ -498,7 +497,7 @@ body {
   }
 }
 
-/* Mobile */
+/* Мобильный */
 @media (max-width: 600px) {
   body {
     padding: 8px;
@@ -585,7 +584,7 @@ body {
 
 <div class="container">
   <div class="header">
-    <h1>🎮 Ren'Py Analyzer</h1>
+    <h1>🎮 Novel Analyzer</h1>
     <p>Статический анализ сценариев визуальных новелл</p>
   </div>
 
@@ -641,9 +640,9 @@ body {
 let cy;
 let editor;
 let currentFileContent = '';
-let currentAnalysis = null; // Store analysis results for node click details
+let currentAnalysis = null; // Сохранить результаты анализа для деталей при клике на узел
 
-// Initialize CodeMirror editor
+// Инициализировать редактор CodeMirror
 function initEditor() {
   if (editor) return;
   
@@ -654,30 +653,30 @@ function initEditor() {
     lineNumbers: true,
     lineWrapping: true,
     readOnly: false,
-    viewportMargin: 100,  // Render 100 lines above/below viewport for smooth scrolling
-    scrollbarStyle: 'native',  // Use native scrollbar for better performance
+    viewportMargin: 100,  // Рендерить 100 строк выше/ниже видимой области для плавной прокрутки
+    scrollbarStyle: 'native',  // Использовать нативный скроллбар для лучшей производительности
     lineWiseCopyCut: true,
-    flattenSpans: true,  // Better performance for large files
-    addModeClass: true,  // Better syntax highlighting performance
-    wheelScrollLines: 3  // Enable mouse wheel scrolling (3 lines per scroll)
+    flattenSpans: true,  // Лучшая производительность для больших файлов
+    addModeClass: true,  // Лучшая производительность подсветки синтаксиса
+    wheelScrollLines: 3  // Включить прокрутку колёсиком мыши (3 строки за прокрутку)
   });
 }
 
-// Highlight lines based on analysis results - FULLY OPTIMIZED: NO iterations, use pre-computed line arrays only
+// Подсветка строк на основе результатов анализа — ПОЛНОСТЬЮ ОПТИМИЗИРОВАНО: без итераций, использовать только предвычисленные массивы строк
 function highlightLines(analysis) {
   if (!editor) return;
   
-  // Clear previous highlights
+  // Очистить предыдущую подсветку
   editor.operation(function() {
     editor.getAllMarks().forEach(function(mark) {
       mark.clear();
     });
   });
   
-  // ALL arrays are pre-computed on backend with line info - just iterate line numbers, not nodes
+  // ВСЕ массивы предвычислены на бэкенде с информацией о строках — просто перебираем номера строк, а не узлы
   const allHighlights = [];
   
-  // Collect all line highlights from pre-computed arrays
+  // Собрать всю подсветку строк из предвычисленных массивов
   if (analysis.unreachable_with_lines?.length) {
     analysis.unreachable_with_lines.forEach(item => {
       if (item.line > 0) allHighlights.push({line: item.line, className: 'cm-unreachable', title: 'Недостижимый узел'});
@@ -696,7 +695,7 @@ function highlightLines(analysis) {
     });
   }
   
-  // Apply all highlights in single pass
+  // Применить всю подсветку за один проход
   editor.operation(function() {
     allHighlights.forEach(h => {
       const from = {line: h.line - 1, ch: 0};
@@ -706,7 +705,7 @@ function highlightLines(analysis) {
   });
 }
 
-// Download current editor content as file
+// Скачать текущее содержимое редактора как файл
 function downloadFile() {
   if (!editor || !currentFileContent) return;
   
@@ -729,7 +728,7 @@ function setEditorContent(content) {
   }
 }
 
-// Get current editor content
+// Получить текущее содержимое редактора
 function getEditorContent() {
   return editor ? editor.getValue() : '';
 }
@@ -748,10 +747,10 @@ async function analyze() {
 
   const text = await file.text();
 
-  // Initialize editor if not already initialized
+  // Инициализировать редактор, если ещё не инициализирован
   initEditor();
   
-  // Set editor content
+  // Установить содержимое редактора
   setEditorContent(text);
 
   document.getElementById('report').innerHTML = '<div class="loading">Анализ выполняется...</div>';
@@ -826,10 +825,10 @@ async function analyze() {
       }
     });
 
-    // Store analysis for node click details
+    // Сохранить анализ для деталей при клике на узел
     currentAnalysis = data.analysis;
     
-    // Highlight lines in editor (still needed for code highlighting)
+    // Подсветить строки в редакторе (всё ещё нужно для подсветки кода)
     highlightLines(data.analysis);
 
     cy.on('click', 'node', function(evt) {
@@ -837,9 +836,9 @@ async function analyze() {
       const summary = n.data('summary') || 'Нет описания';
       const code = n.data('code') || 'Нет кода';
       const line = n.data('line');
-      const warnings = n.data('warnings') || []; // Use pre-computed warnings from backend
+      const warnings = n.data('warnings') || []; // Использовать предвычисленные предупреждения с бэкенда
       
-      // Build node details HTML
+      // Построить HTML с деталями узла
       let detailsHtml = `
         <strong>Узел: ${n.id()}</strong>
         ${line ? `<br><span style="color: #666;">Строка: ${line}</span>` : ''}
@@ -849,7 +848,7 @@ async function analyze() {
         Код:<br>${escapeHtml(code)}
       `;
       
-      // Display pre-computed warnings - NO iteration needed
+      // Отобразить предвычисленные предупреждения — итерация не нужна
       if (warnings.length > 0) {
         detailsHtml += '<br><br><div style="border-top: 2px solid #e74c3c; padding-top: 12px;">';
         detailsHtml += '<strong style="color: #e74c3c;">⚠️ Предупреждения:</strong><br><br>';
@@ -869,7 +868,7 @@ async function analyze() {
     let reportHtml = '';
     const analysis = data.analysis || {};
 
-    // OPTIMIZED: Direct rendering without iteration - use pre-computed arrays
+    // ОПТИМИЗИРОВАНО: прямая отрисовка без итерации — использовать предвычисленные массивы
     if (analysis.unreachable?.length) {
       hasErrors = true;
       reportHtml += '<div class="report-section">';
@@ -894,7 +893,7 @@ async function analyze() {
       reportHtml += '</div>';
     }
 
-    // Use aggregated state errors from backend to avoid duplicates
+    // Использовать агрегированные ошибки состояний с бэкенда, чтобы избежать дубликатов
     if (analysis.state_impossible_aggregated?.length) {
       hasErrors = true;
       reportHtml += '<div class="report-section">';

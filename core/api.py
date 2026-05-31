@@ -16,7 +16,7 @@ from core.ir.model import UnknownStatement
 
 app = FastAPI()
 
-# Backward-compatible alias: external test scripts import preprocess_code from core.api
+# Обратная совместимость: внешние тестовые скрипты импортируют preprocess_code из core.api
 preprocess_code = RenPyParser.preprocess_code
 
 app.add_middleware(
@@ -101,7 +101,7 @@ def build_recommendations(analysis):
                 f"{err['label']}: {err['var']} ≥ {err['required']} недостижимо — снизьте порог или добавьте больше выборов, дающих очки опыта"
             )
 
-    # Always-true conditions (E07) - use aggregated data
+    # Всегда истинные условия — использовать агрегированные данные
     for at in analysis.get("state_always_true_aggregated", []):
         line = at.get("line", None)
         lbl = at.get("label")
@@ -114,7 +114,7 @@ def build_recommendations(analysis):
         else:
             recs.append(f"{lbl}: Условие '{var} {op} {val}' всегда истинно — ветка else никогда не выполнится. Проверьте логику условия — возможно, вы перепутали знак сравнения или переменная не может принять нужное значение.")
 
-    # Flag contradictions (E08) - use aggregated data
+    # Противоречия флагов — использовать агрегированные данные
     for fc in analysis.get("state_flag_contradictions_aggregated", []):
         line = fc.get("line", None)
         lbl = fc.get("label")
@@ -131,33 +131,33 @@ def build_recommendations(analysis):
 @app.post("/analyze")
 def analyze_script(req: ScriptRequest):
     try:
-        # Step 1: Create parser and preprocess code to handle unknown statements
+        # Шаг 1: Создать парсер и препроцессировать код для обработки неизвестных операторов
         parser = RenPyParser()
         processed_code, replaced_lines_info = parser.preprocess_code(req.code)
 
-        # Build a lookup dict for fast access: line_number -> original_text
+        # Построить словарь для быстрого доступа: номер_строки -> исходный_текст
         original_texts = {info['line']: info['text'] for info in replaced_lines_info}
 
-        # Step 2: Parse the processed code
+        # Шаг 2: Распарсить обработанный код
         tree = parser.parse_text(processed_code)
 
         transformer = RenPyTransformer()
         script = transformer.transform(tree)
 
-        # Step 3: Collect warnings from UnknownStatement
+        # Шаг 3: Собрать предупреждения из UnknownStatement
         warnings = []
         critical_keywords = ['call', 'return', 'while', 'repeat', 'python:']
         
         for label_name, label_obj in script.labels.items():
             for stmt in label_obj.body:
                 if isinstance(stmt, UnknownStatement):
-                    # Get the original line number from the statement
+                    # Получить номер строки из оператора
                     line_num = stmt.line
                     
-                    # Look up the original text
+                    # Найти исходный текст
                     original_text = original_texts.get(line_num, stmt.source)
                     
-                    # Check for critical keywords in the original text
+                    # Проверить наличие критических ключевых слов в исходном тексте
                     source_lower = original_text.lower()
                     is_critical = any(keyword in source_lower for keyword in critical_keywords)
                     
@@ -213,7 +213,7 @@ def analyze_script(req: ScriptRequest):
         loop_analyzer = InfiniteLoopAnalyzer()
         state = StateAnalyzer()
 
-        # Get line numbers for unreachable nodes
+        # Получить номера строк для недостижимых узлов
         unreachable_nodes = set()
         unreachable_with_lines = []
         unreachable_simple = []
@@ -229,7 +229,7 @@ def analyze_script(req: ScriptRequest):
             else:
                 unreachable_with_lines.append({"node": node, "line": None})
 
-        # Get line numbers for terminal nodes
+        # Получить номера строк для терминальных узлов
         terminal_nodes_set = set()
         terminal_with_lines = []
         terminal_simple = []
@@ -245,7 +245,7 @@ def analyze_script(req: ScriptRequest):
             else:
                 terminal_with_lines.append({"node": node, "line": None})
 
-        # Get line numbers for infinite loops
+        # Получить номера строк для бесконечных циклов
         infinite_loop_nodes = set()
         infinite_loops_with_lines = []
         infinite_loops_simple = []
@@ -266,12 +266,13 @@ def analyze_script(req: ScriptRequest):
             infinite_loops_with_lines.append(loop_with_lines)
             infinite_loops_simple.append(loop_simple)
 
-        # Get state error nodes with line numbers
+        # Получить узлы с ошибками состояний и их номера строк
         state_error_nodes = set()
         state_errors_with_lines = []
         state_analysis = state.analyze(script)
-        # Build aggregated view of state errors to avoid repeating identical warnings for the same
-        # label+variable across multiple paths. This makes the frontend report more concise.
+        # Построить агрегированное представление ошибок состояний, чтобы избежать
+        # повторения одинаковых предупреждений для одного label+переменной
+        # на разных путях. Это делает отчёт фронтенда более лаконичным.
         agg_impossible = {}
         for err in state_analysis.get("impossible_conditions", []):
             key = (err.get("label"), err.get("var"), err.get("type"))
@@ -305,7 +306,7 @@ def analyze_script(req: ScriptRequest):
                 "occurrences": len(v["paths"]) or 1
             })
 
-        # Aggregate flag contradictions (dedupe by label+var)
+        # Агрегировать противоречия флагов (дедупликация по label+var)
         agg_fc = {}
         for fc in state_analysis.get("flag_contradictions", []):
             key = (fc.get("label"), fc.get("var"))
@@ -317,7 +318,7 @@ def analyze_script(req: ScriptRequest):
             if fc.get("line") is not None:
                 item["lines"].add(fc.get("line"))
 
-        # Aggregate always-true conditions (dedupe by label+var+op+value)
+        # Агрегировать всегда истинные условия (дедупликация по label+var+op+value)
         agg_at = {}
         for at in state_analysis.get("always_true_conditions", []):
             key = (at.get("label"), at.get("var"), at.get("op"), at.get("value"))
@@ -376,11 +377,11 @@ def analyze_script(req: ScriptRequest):
                     err_with_line['line'] = None
                     state_errors_with_lines.append(err_with_line)
 
-        # Build nodes with pre-computed classes
+        # Построить узлы с предвычисленными классами
         missing_nodes = set(n for n in all_nodes if n not in graph)
         nodes = []
         for k in all_nodes:
-            # Build node classes and warnings
+            # Построить классы узла и предупреждения
             node_classes = []
             node_warnings = []
             
@@ -413,7 +414,7 @@ def analyze_script(req: ScriptRequest):
             
             if k in state_error_nodes:
                 node_classes.append("bad-state")
-                # Use aggregated impossible conditions to avoid duplicates
+                # Использовать агрегированные невозможные условия, чтобы избежать дубликатов
                 aggs = impossible_aggregated
                 seen_vars = set()
                 for a in aggs:
@@ -429,7 +430,7 @@ def analyze_script(req: ScriptRequest):
                     occ = a.get('occurrences', 1)
                     path_info = ' → '.join(paths[0]) if paths and paths[0] else ''
                     
-                    # Flag-specific
+                    # Специфика флагов
                     if typ == 'flag':
                         node_warnings.append({
                             "type": "bad-state",
@@ -438,7 +439,7 @@ def analyze_script(req: ScriptRequest):
                             "details": f"Флаг {var} не может принять требуемое значение ({a.get('required')}). Путь: {path_info}. Проверьте инициализацию и присваивания ({var} = True/False)."
                         })
                     else:
-                        # Numeric or unknown-range
+                        # Численный или неизвестный диапазон
                         ranges = a.get('ranges', [])
                         has_unknown = any(r is None or (isinstance(r, (list,tuple)) and (r[0] is None or r[1] is None)) for r in ranges)
                         if has_unknown:
@@ -449,7 +450,7 @@ def analyze_script(req: ScriptRequest):
                                 "details": f"Требуется {var} ≥ {a.get('required')}, но состояние переменной неопределено. Проверьте инициализацию и места присваиваний переменной; возможно, это булевый флаг или значение устанавливается не во всех ветках."
                             })
                         else:
-                            # show numeric summary (use first range)
+                            # показать числовую сводку (использовать первый диапазон)
                             rng0, rng1 = (ranges[0] if ranges else (None, None))
                             node_warnings.append({
                                 "type": "bad-state",
@@ -504,7 +505,7 @@ def analyze_script(req: ScriptRequest):
             "infinite_loops_with_lines": infinite_loops_with_lines,
             "state": state_analysis,
             "state_errors_with_lines": state_errors_with_lines,
-            # Aggregated summaries to help frontend avoid duplicate entries
+            # Агрегированные сводки, чтобы помочь фронтенду избежать дубликатов
             "state_impossible_aggregated": impossible_aggregated,
             "state_flag_contradictions_aggregated": flag_contradictions_aggregated,
             "state_always_true_aggregated": always_true_aggregated,
