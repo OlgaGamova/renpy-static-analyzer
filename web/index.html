@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ren'Py Analyzer — визуальный анализатор сценариев</title>
+<title>Novel Analyzer — визуальный анализатор сценариев</title>
 
 <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
 <script src="https://unpkg.com/dagre/dist/dagre.min.js"></script>
@@ -820,8 +820,9 @@ async function analyze() {
       layout: {
         name: 'dagre',
         rankDir: 'TB',
-        animate: true,
-        animationDuration: 300
+        animate: false,
+        nodeDimensionsIncludeLabels: false,
+        ranker: 'network-simplex'
       }
     });
 

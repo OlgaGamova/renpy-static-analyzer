@@ -3,6 +3,7 @@ from collections import deque
 
 INF = float("inf")
 MAX_CALL_STACK_DEPTH = 10  # Максимальная глубина стека вызовов для предотвращения бесконечных циклов
+MAX_INTERVAL = 1000  # Максимальное значение интервала для предотвращения генерации тысяч состояний
 
 class StateAnalyzer:
     """
@@ -19,7 +20,8 @@ class StateAnalyzer:
             "always_true_conditions": [],
             "flag_contradictions": [],
             "undefined_labels": [],
-            "stack_overflow_warnings": []  # Предупреждения о глубоком стеке вызовов
+            "stack_overflow_warnings": [],  # Предупреждения о глубоком стеке вызовов
+            "interval_limit_warnings": []  # Предупреждения об ограничении интервалов
         }
 
         # очередь для обхода: каждый элемент = (label, state, path, call_stack, operator_index)
@@ -80,7 +82,7 @@ class StateAnalyzer:
 
                 # --- ПРИСВАИВАНИЕ ---
                 if isinstance(node, Assignment):
-                    state = self._apply(state, node)
+                    state = self._apply(state, node, results, label, path)
 
                 # --- ВЫЗОВ ---
                 elif isinstance(node, Call):
@@ -219,7 +221,7 @@ class StateAnalyzer:
                                 # Обработать операторы перехода в теле условия
                                 queue.append((stmt.target, state.copy(), path + [stmt.target], call_stack.copy(), 0))
                             elif isinstance(stmt, Assignment):
-                                state = self._apply(state, stmt)
+                                state = self._apply(state, stmt, results, label, path)
                             elif isinstance(stmt, Condition):
                                 # Обработать вложенные условия
                                 queue.append((label, state.copy(), path.copy(), call_stack.copy(), idx + 1))
@@ -234,7 +236,7 @@ class StateAnalyzer:
                             if hasattr(stmt, 'target'):
                                 queue.append((stmt.target, elif_state.copy(), path + [stmt.target], call_stack.copy(), 0))
                             elif isinstance(stmt, Assignment):
-                                elif_state = self._apply(elif_state, stmt)
+                                elif_state = self._apply(elif_state, stmt, results, label, path)
 
                     # Обработать ветку else, если она есть
                     if node.else_body:
@@ -243,7 +245,7 @@ class StateAnalyzer:
                             if hasattr(stmt, 'target'):
                                 queue.append((stmt.target, else_state.copy(), path + [stmt.target], call_stack.copy(), 0))
                             elif isinstance(stmt, Assignment):
-                                else_state = self._apply(else_state, stmt)
+                                else_state = self._apply(else_state, stmt, results, label, path)
 
                 # --- МЕНЮ ---
                 elif isinstance(node, Menu):
@@ -253,7 +255,7 @@ class StateAnalyzer:
                         option_state = state.copy()
                         for stmt in option.body:
                             if isinstance(stmt, Assignment):
-                                option_state = self._apply(option_state, stmt)
+                                option_state = self._apply(option_state, stmt, results, label, path)
                             elif hasattr(stmt, 'target'):
                                 # Добавить целевую метку с обновлённым состоянием
                                 queue.append((stmt.target, option_state.copy(), path + [stmt.target], call_stack.copy(), 0))
@@ -267,7 +269,7 @@ class StateAnalyzer:
 
         return results
 
-    def _apply(self, state, node: Assignment):
+    def _apply(self, state, node: Assignment, results=None, label=None, path=None):
         state = state.copy()
         # Если присваивание похоже на булево (0/1), считать флагом
         if node.op == "=" and node.value in (0, 1):
@@ -287,15 +289,47 @@ class StateAnalyzer:
         else:
             min_v, max_v = existing
 
+        original_min, original_max = min_v, max_v
+        limited = False
+
         if node.op == "+=":
             min_v += node.value
             max_v += node.value if max_v != INF else INF
+            # Ограничить максимальное значение интервала
+            if max_v != INF and max_v > MAX_INTERVAL:
+                max_v = MAX_INTERVAL
+                # Также ограничить min_v, чтобы не превышать max_v
+                if min_v > max_v:
+                    min_v = max_v
+                limited = True
         elif node.op == "-=":
             min_v -= node.value
             max_v -= node.value
+            # Ограничить минимальное значение интервала (отрицательные значения)
+            if min_v < -MAX_INTERVAL:
+                min_v = -MAX_INTERVAL
+                # Также ограничить max_v, чтобы не быть меньше min_v
+                if max_v < min_v:
+                    max_v = min_v
+                limited = True
         elif node.op == "=":
             min_v = node.value
             max_v = node.value
+
+        # Добавить предупреждение, если произошло ограничение
+        if limited and results is not None and label is not None:
+            line_num = getattr(node, 'line', None)
+            results["interval_limit_warnings"].append({
+                "label": label,
+                "path": path.copy() if path else [],
+                "var": node.var,
+                "operation": node.op,
+                "value": node.value,
+                "original_range": (original_min, original_max),
+                "limited_range": (min_v, max_v),
+                "max_interval": MAX_INTERVAL,
+                "line": line_num
+            })
 
         state[node.var] = (min_v, max_v)
         return state
